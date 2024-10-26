@@ -21,6 +21,16 @@ We say that `o` is in normal form `PreCantor.NF o` if either `o = 0` or `o = ω 
 
 The type `Cantor` is the type of ordinals below `ε₀` in normal form.
 Various operations (addition, subtraction, multiplication, exponentiation) are defined on `Cantor`.
+
+## Vi's addendum
+
+This file would not exist if not for Mario's work. That being said, this file has been heavily
+modified from the Mathlib original, to fix what I percieve to be various weaknesses.
+
+- `ONote` is renamed to `PreCantor` and `NONote` is renamed to `Cantor`.
+- The `Preorder` instance is no longer defined in terms of `repr`, thus making it computable.
+- `NFBelow` is disposed of, and `NF` is no longer a typeclass.
+- The definition of `add` is simplified.
 -/
 
 open Ordinal Order
@@ -31,11 +41,13 @@ and `oadd e n a` is intended to refer to `ω ^ e * n + a`.
 Comparison is performed lexicographically. We say that `ω ^ e * n + a` is a normal form
 `PreCantor.NF` whenever `a < ω ^ e` and both `e` and `a` are normal forms.
 
-For this to be a valid Cantor normal form, we must have the
-exponents decrease to the right, but we can't state this condition until we've defined `repr`, so we
-make it a separate definition `NF`. -/
+For this to be a valid Cantor normal form, we must have the exponents decrease to the right, but we
+can't state this condition until we've defined the ordering, so we make it a separate definition
+`NF`. -/
 inductive PreCantor : Type
+  /-- The ordinal `0` -/
   | zero : PreCantor
+  /-- The ordinal `oadd e n a = ω ^ e * n + a` -/
   | oadd : PreCantor → ℕ+ → PreCantor → PreCantor
   deriving DecidableEq
 
@@ -43,7 +55,12 @@ compile_inductive% PreCantor
 
 namespace PreCantor
 
+variable {e a e₁ a₁ e₂ a₂ : PreCantor} {n₁ n₂ : ℕ+}
+
 /-! ### Basic instances -/
+
+theorem oadd_inj : oadd e₁ n₁ a₁ = oadd e₂ n₂ a₂ ↔ e₁ = e₂ ∧ n₁ = n₂ ∧ a₁ = a₂ :=
+  oadd.injEq .. ▸ Iff.rfl
 
 /-- The ordinal `0` is represented as `zero`. -/
 instance : Zero PreCantor :=
@@ -60,6 +77,10 @@ instance : Inhabited PreCantor :=
 instance : One PreCantor :=
   ⟨oadd 0 1 0⟩
 
+@[simp]
+theorem one_def : oadd 0 1 0 = 1 :=
+  rfl
+
 /-- The ordinal `ω` is represented as `oadd 1 1 0 = ω ^ 1 * 1 + 0`. -/
 def omega : PreCantor :=
   oadd 1 1 0
@@ -68,13 +89,33 @@ def omega : PreCantor :=
 
 This operation is non-computable, as is ordinal arithmetic in general, but it can be used to state
 correctness results. -/
-@[simp]
 noncomputable def repr : PreCantor → Ordinal.{0}
   | 0 => 0
   | oadd e n a => ω ^ repr e * n + repr a
 
 @[simp] theorem repr_zero : repr 0 = 0 := rfl
 @[simp] theorem repr_one : repr 1 = 1 := by simp [repr]
+
+theorem repr_oadd (e n a) : repr (oadd e n a) = ω ^ repr e * n + repr a :=
+  rfl
+
+private theorem omega0_opow_pos {o : Ordinal} : 0 < ω ^ o :=
+  opow_pos o omega0_pos
+
+theorem snd_le_repr_oadd (e n a) : ω ^ repr e * n ≤ repr (oadd e n a) :=
+  le_add_right _ _
+
+theorem fst_le_repr_oadd (e n a) : ω ^ repr e ≤ repr (oadd e n a) :=
+  (Ordinal.le_mul_left _ (mod_cast n.pos)).trans (snd_le_repr_oadd _ _ _)
+
+theorem repr_oadd_pos (e n a) : 0 < repr (oadd e n a) :=
+  omega0_opow_pos.trans_le <| fst_le_repr_oadd e n a
+
+@[simp]
+theorem repr_eq_zero {x : PreCantor} : repr x = 0 ↔ x = 0 := by
+  cases x
+  · simp
+  · simpa using (repr_oadd_pos _ _ _).ne'
 
 /-- Casts a natural number into a `PreCantor` -/
 instance : NatCast PreCantor where
@@ -86,10 +127,11 @@ instance : NatCast PreCantor where
 @[simp] theorem natCast_succ (n : ℕ) : n.succ = oadd 0 n.succPNat 0 := rfl
 @[simp] theorem natCast_one : (1 : ℕ) = (1 : PreCantor) := rfl
 
-@[simp] theorem repr_natCast (n : ℕ) : repr n = n := by cases n <;> simp
+@[simp] theorem repr_natCast (n : ℕ) : repr n = n := by cases n <;> simp [repr_oadd]
 
-instance (n : ℕ) : OfNat PreCantor n where
-  ofNat := n
+@[simp] theorem repr_ofNat (n : ℕ) [n.AtLeastTwo] :
+    repr (no_index (OfNat.ofNat n)) = n :=
+  repr_natCast n
 
 /-- Print `ω ^ s * n`, omitting `s` if `e = 0` or `e = 1`, and omitting `n` if `n = 1` -/
 private def toString_aux (e : PreCantor) (n : ℕ) (s : String) : String :=
@@ -142,18 +184,20 @@ protected def cmp : PreCantor → PreCantor → Ordering
 instance : LT PreCantor where
   lt x y := x.cmp y = lt
 
-private theorem lt_def (x y : PreCantor) : x < y ↔ x.cmp y = lt := Iff.rfl
+theorem lt_def (x y : PreCantor) : x < y ↔ x.cmp y = lt := Iff.rfl
 
 instance : LE PreCantor where
   le x y := x.cmp y ≠ gt
 
-private theorem le_def (x y : PreCantor) : x ≤ y ↔ x.cmp y ≠ gt := Iff.rfl
+theorem le_def (x y : PreCantor) : x ≤ y ↔ x.cmp y ≠ gt := Iff.rfl
 
+@[simp]
 protected theorem zero_le (x : PreCantor) : 0 ≤ x := by
   cases x <;> simp [le_def, PreCantor.cmp]
 
 theorem oadd_pos (e n a) : 0 < oadd e n a := rfl
 
+@[simp]
 protected theorem not_lt_zero (x : PreCantor) : ¬ x < 0 := by
   cases x <;> simp [lt_def, PreCantor.cmp]
 
@@ -161,10 +205,12 @@ protected theorem not_lt_zero (x : PreCantor) : ¬ x < 0 := by
 protected theorem le_zero {x : PreCantor} : x ≤ 0 ↔ x = 0 := by
   cases x <;> simp [le_def, PreCantor.cmp]
 
+protected theorem zero_lt_one : (0 : PreCantor) < 1 := rfl
+
 private theorem cmp_eq_eq_iff : ∀ {x y : PreCantor}, x.cmp y = eq ↔ x = y
   | 0, 0 | 0, oadd _ _ _ | oadd _ _ _, 0 => by simp [PreCantor.cmp]
   | oadd e₁ n₁ a₁, oadd e₂ n₂ a₂ => by
-    simp_rw [PreCantor.cmp, then_eq_eq, cmp_eq_eq_iff, _root_.cmp_eq_eq_iff, oadd.injEq]
+    simp_rw [PreCantor.cmp, then_eq_eq, cmp_eq_eq_iff, _root_.cmp_eq_eq_iff, oadd_inj]
 
 private theorem cmp_self_eq_eq (x : PreCantor) : x.cmp x = eq :=
   cmp_eq_eq_iff.2 rfl
@@ -215,10 +261,7 @@ private theorem cmp_compares (x y : PreCantor) : (x.cmp y).Compares x y :=
   match h : x.cmp y with
   | Ordering.lt => h
   | Ordering.eq => by rwa [cmp_eq_eq_iff] at h
-  | Ordering.gt => by
-    change y.cmp x = _
-    rw [← x.cmp_swap, h]
-    rfl
+  | Ordering.gt => by rw [compares_gt, gt_iff_lt, lt_def, ← x.cmp_swap, h]; rfl
 
 instance : LinearOrder PreCantor :=
   linearOrderOfCompares PreCantor.cmp PreCantor.cmp_compares
@@ -227,284 +270,232 @@ instance : LinearOrder PreCantor :=
 theorem cmp_eq_cmp : PreCantor.cmp = cmp :=
   funext₂ fun a b ↦ (cmp_compares a b).cmp_eq.symm
 
-end cmp
-
 theorem oadd_cmp_oadd (e₁ n₁ a₁ e₂ n₂ a₂) : cmp (oadd e₁ n₁ a₁) (oadd e₂ n₂ a₂) =
     (cmp e₁ e₂).then ((cmp n₁ n₂).then (cmp a₁ a₂)) := by
   rw [← cmp_eq_cmp]
   rfl
 
-#exit
+theorem oadd_lt_oadd : oadd e₁ n₁ a₁ < oadd e₂ n₂ a₂ ↔
+    e₁ < e₂ ∨ e₁ = e₂ ∧ (n₁ < n₂ ∨ n₁ = n₂ ∧ a₁ < a₂) := by
+  rw [← cmp_eq_lt_iff, oadd_cmp_oadd]
+  simp [then_eq_lt]
 
-#exit
+theorem oadd_le_oadd : oadd e₁ n₁ a₁ ≤ oadd e₂ n₂ a₂ ↔
+    e₁ < e₂ ∨ e₁ = e₂ ∧ (n₁ < n₂ ∨ n₁ = n₂ ∧ a₁ ≤ a₂) := by
+  simp_rw [le_iff_lt_or_eq, oadd_lt_oadd, oadd_inj]
+  tauto
 
-#exit
-instance : Preorder PreCantor where
-  le x y := repr x ≤ repr y
-  lt x y := repr x < repr y
-  le_refl _ := @le_refl Ordinal _ _
-  le_trans _ _ _ := @le_trans Ordinal _ _ _ _
-  lt_iff_le_not_le _ _ := @lt_iff_le_not_le Ordinal _ _ _
+theorem oadd_lt_oadd_fst (h : e₁ < e₂) : oadd e₁ n₁ a₁ < oadd e₂ n₂ a₂ := by
+  rw [oadd_lt_oadd]
+  exact Or.inl h
 
-theorem lt_def {x y : PreCantor} : x < y ↔ repr x < repr y :=
-  Iff.rfl
+theorem oadd_lt_oadd_snd (h : n₁ < n₂) : oadd e n₁ a₁ < oadd e n₂ a₂ := by
+  rw [oadd_lt_oadd]
+  exact Or.inr ⟨rfl, Or.inl h⟩
 
-theorem le_def {x y : PreCantor} : x ≤ y ↔ repr x ≤ repr y :=
-  Iff.rfl
+theorem oadd_lt_oadd_thd (h : a₁ < a₂) : oadd e n a₁ < oadd e n a₂ := by
+  rw [oadd_lt_oadd]
+  exact Or.inr ⟨rfl, Or.inr ⟨rfl, h⟩⟩
 
-instance : WellFoundedRelation PreCantor :=
-  ⟨(· < ·), InvImage.wf repr Ordinal.lt_wf⟩
-
-
-theorem omega0_le_oadd (e n a) : ω ^ repr e ≤ repr (oadd e n a) := by
-  refine le_trans ?_ (le_add_right _ _)
-  simpa using (Ordinal.mul_le_mul_iff_left <| opow_pos (repr e) omega0_pos).2 (Nat.cast_le.2 n.2)
-
-@[deprecated (since := "2024-09-30")]
-alias omega_le_oadd := omega0_le_oadd
-
-theorem oadd_pos (e n a) : 0 < oadd e n a :=
-  @lt_of_lt_of_le _ _ _ (ω ^ repr e) _ (opow_pos (repr e) omega0_pos) (omega0_le_oadd e n a)
-
-theorem eq_of_cmp_eq : ∀ {o₁ o₂}, cmp o₁ o₂ = Ordering.eq → o₁ = o₂
-  | 0, 0, _ => rfl
-  | oadd e n a, 0, h => by injection h
-  | 0, oadd e n a, h => by injection h
-  | oadd e₁ n₁ a₁, oadd e₂ n₂ a₂, h => by
-    revert h; simp only [cmp]
-    cases h₁ : cmp e₁ e₂ <;> intro h <;> try cases h
-    obtain rfl := eq_of_cmp_eq h₁
-    revert h; cases h₂ : _root_.cmp (n₁ : ℕ) n₂ <;> intro h <;> try cases h
-    obtain rfl := eq_of_cmp_eq h
-    rw [_root_.cmp, cmpUsing_eq_eq, not_lt, not_lt, ← le_antisymm_iff] at h₂
-    obtain rfl := Subtype.eq h₂
+@[simp]
+protected theorem lt_one_iff_zero {x : PreCantor} : x < 1 ↔ x = 0 := by
+  obtain (_ | ⟨e, n, a⟩) := x
+  · simpa using PreCantor.zero_lt_one
+  · rw [← one_def, oadd_lt_oadd]
     simp
 
-protected theorem zero_lt_one : (0 : PreCantor) < 1 := by
-  simp only [lt_def, repr, opow_zero, Nat.succPNat_coe, Nat.cast_one, mul_one, add_zero,
-    zero_lt_one]
+end cmp
 
 /-! ### Normal forms -/
 
-/-- `NFBelow o b` says that `o` is a normal form ordinal notation satisfying `repr o < ω ^ b`. -/
-inductive NFBelow : PreCantor → Ordinal.{0} → Prop
-  | zero {b} : NFBelow 0 b
-  | oadd' {e n a eb b} : NFBelow e eb → NFBelow a (repr e) → repr e < b → NFBelow (oadd e n a) b
+/-- A normal form `PreCantor` has the form
 
-#exit
-/-- A normal form ordinal notation has the form
+`ω ^ e₁ * n₁ + ω ^ e₂ * n₂ + ⋯ + ω ^ eₖ * nₖ`
 
-`ω ^ a₁ * n₁ + ω ^ a₂ * n₂ + ⋯ + ω ^ aₖ * nₖ`
+where `e₁ > e₂ > ⋯ > eₖ` and all the `eᵢ` are also in normal form.
 
-where `a₁ > a₂ > ⋯ > aₖ` and all the `aᵢ` are also in normal form.
+We will essentially only be interested in normal forms, but to avoid complicating the algorithms, we
+define everything over `PreCantor` and only prove correctness with normal form as an invariant. -/
+inductive NF : PreCantor → Prop
+  /-- Zero is a normal form. -/
+  | zero : NF 0
+  /-- `ω ^ e * n + a` is a normal form when `e` and `a` are normal forms with `a < ω ^ e`. -/
+  | oadd' {e n a} : NF e → NF a → a < oadd e 1 0 → NF (oadd e n a)
 
-We will essentially only be interested in normal form ordinal notations, but to avoid complicating
-the algorithms, we define everything over general ordinal notations and only prove correctness with
-normal form as an invariant. -/
-class NF (o : PreCantor) : Prop where
-  out : Exists (NFBelow o)
+protected alias NF.oadd := NF.oadd'
 
-instance NF.zero : NF 0 :=
-  ⟨⟨0, NFBelow.zero⟩⟩
+theorem NF_oadd_iff {e n a} : NF (oadd e n a) ↔ NF e ∧ NF a ∧ a < oadd e 1 0 := by
+  refine ⟨?_, fun ⟨he, ha, h⟩ ↦ he.oadd ha h⟩
+  rintro ⟨⟩
+  refine ⟨?_, ?_, ?_⟩
+  assumption'
 
-theorem NFBelow.oadd {e n a b} : NF e → NFBelow a (repr e) → repr e < b → NFBelow (oadd e n a) b
-  | ⟨⟨_, h⟩⟩ => NFBelow.oadd' h
+private def decidable_NF : DecidablePred NF := fun x ↦
+  match x with
+  | 0 => Decidable.isTrue NF.zero
+  | oadd e n a => by
+    refine @decidable_of_iff _ _ NF_oadd_iff.symm ?_
+    letI := decidable_NF e
+    letI := decidable_NF a
+    infer_instance
 
-theorem NFBelow.fst {e n a b} (h : NFBelow (PreCantor.oadd e n a) b) : NF e := by
-  cases' h with _ _ _ _ eb _ h₁ h₂ h₃; exact ⟨⟨_, h₁⟩⟩
+instance : DecidablePred NF :=
+  decidable_NF
 
-theorem NF.fst {e n a} : NF (oadd e n a) → NF e
-  | ⟨⟨_, h⟩⟩ => h.fst
+theorem NF.fst {e n a} (h : NF (oadd e n a)) : NF e := by
+  rw [NF_oadd_iff] at h
+  exact h.1
 
-theorem NFBelow.snd {e n a b} (h : NFBelow (PreCantor.oadd e n a) b) : NFBelow a (repr e) := by
-  cases' h with _ _ _ _ eb _ h₁ h₂ h₃; exact h₂
+theorem NF.snd {e n a} (h : NF (oadd e n a)) : NF a := by
+  rw [NF_oadd_iff] at h
+  exact h.2.1
 
-theorem NF.snd' {e n a} : NF (oadd e n a) → NFBelow a (repr e)
-  | ⟨⟨_, h⟩⟩ => h.snd
+theorem NF.lt_oadd {e n a} (h : NF (oadd e n a)) : a < oadd e 1 0 := by
+  rw [NF_oadd_iff] at h
+  exact h.2.2
 
-theorem NF.snd {e n a} (h : NF (oadd e n a)) : NF a :=
-  ⟨⟨_, h.snd'⟩⟩
+theorem NF.oadd_zero {e} (h : NF e) (n : ℕ+) : NF (oadd e n 0) :=
+  h.oadd NF.zero (oadd_pos e n 0)
 
-theorem NF.oadd {e a} (h₁ : NF e) (n) (h₂ : NFBelow a (repr e)) : NF (oadd e n a) :=
-  ⟨⟨_, NFBelow.oadd h₁ h₂ (lt_succ _)⟩⟩
+theorem NF.zero_of_zero {e n a} (h : NF (oadd e n a)) (he : e = 0) : a = 0 := by
+  subst he
+  simpa using h.lt_oadd
 
-instance NF.oadd_zero (e n) [h : NF e] : NF (PreCantor.oadd e n 0) :=
-  h.oadd _ NFBelow.zero
+theorem NF_natCast (n : ℕ) : NF n := by
+  cases n
+  · exact NF.zero
+  · exact NF.oadd_zero NF.zero _
 
-theorem NFBelow.lt {e n a b} (h : NFBelow (PreCantor.oadd e n a) b) : repr e < b := by
-  cases' h with _ _ _ _ eb _ h₁ h₂ h₃; exact h₃
+theorem NF_one : NF 1 :=
+  NF_natCast 1
 
-theorem NFBelow_zero : ∀ {o}, NFBelow o 0 ↔ o = 0
-  | 0 => ⟨fun _ => rfl, fun _ => NFBelow.zero⟩
-  | oadd _ _ _ =>
-    ⟨fun h => (not_le_of_lt h.lt).elim (Ordinal.zero_le _), fun e => e.symm ▸ NFBelow.zero⟩
+theorem repr_lt_repr_of_lt : ∀ {x y}, NF x → NF y → x < y → repr x < repr y
+  | _, 0, _, _, h => by simp at h
+  | 0, oadd e n a, _, _, _ => repr_oadd_pos e n a
+  | oadd e₁ n₁ a₁, oadd e₂ n₂ a₂, hx, hy, h => by
+    rw [oadd_lt_oadd] at h
+    have H : repr (oadd e₁ n₁ a₁) < ω ^ e₁.repr * (n₁ + 1 : ℕ+) := by
+      simpa [repr_oadd, mul_succ] using repr_lt_repr_of_lt hx.snd (hx.fst.oadd_zero 1) hx.lt_oadd
+    obtain he | ⟨rfl, hn | ⟨rfl, ha⟩⟩ := h
+    · calc
+        _ < ω ^ e₁.repr * (n₁ + 1 : ℕ+) := H
+        _ < ω ^ succ e₁.repr := omega0_opow_mul_nat_lt (lt_succ _) _
+        _ ≤ ω ^ e₂.repr := opow_le_opow_right omega0_pos
+          (repr_lt_repr_of_lt hx.fst hy.fst he).succ_le
+        _ ≤ repr (oadd e₂ n₂ a₂) := fst_le_repr_oadd e₂ n₂ a₂
+    · calc
+        _ < ω ^ e₁.repr * (n₁ + 1 : ℕ+) := H
+        _ ≤ ω ^ repr e₁ * n₂ := (Ordinal.mul_le_mul_iff_left omega0_opow_pos).2
+          (mod_cast Nat.succ_le.2 hn)
+        _ ≤ repr (oadd e₁ n₂ a₂) := snd_le_repr_oadd e₁ n₂ a₂
+    · exact (add_lt_add_iff_left _).2 (repr_lt_repr_of_lt hx.snd hy.snd ha)
 
-theorem NF.zero_of_zero {e n a} (h : NF (PreCantor.oadd e n a)) (e0 : e = 0) : a = 0 := by
-  simpa [e0, NFBelow_zero] using h.snd'
+theorem repr_le_repr_of_le {x y} (hx : NF x) (hy : NF y) (h : x ≤ y) : repr x ≤ repr y := by
+  obtain h | rfl := h.lt_or_eq
+  · exact (repr_lt_repr_of_lt hx hy h).le
+  · rfl
 
-theorem NFBelow.repr_lt {o b} (h : NFBelow o b) : repr o < ω ^ b := by
-  induction h with
-  | zero => exact opow_pos _ omega0_pos
-  | oadd' _ _ h₃ _ IH =>
-    rw [repr]
-    apply ((add_lt_add_iff_left _).2 IH).trans_le
-    rw [← mul_succ]
-    apply (mul_le_mul_left' (succ_le_of_lt (nat_lt_omega0 _)) _).trans
-    rw [← opow_succ]
-    exact opow_le_opow_right omega0_pos (succ_le_of_lt h₃)
+theorem repr_lt_repr_iff {x y} (hx : NF x) (hy : NF y) : repr x < repr y ↔ x < y := by
+  obtain h | rfl | h := lt_trichotomy x y
+  · simp_rw [h, repr_lt_repr_of_lt hx hy h]
+  · simp
+  · simp_rw [h.not_lt, (repr_lt_repr_of_lt hy hx h).not_lt]
 
-theorem NFBelow.mono {o b₁ b₂} (bb : b₁ ≤ b₂) (h : NFBelow o b₁) : NFBelow o b₂ := by
-  induction h with
-  | zero => exact zero
-  | oadd' h₁ h₂ h₃ _ _ => constructor; exacts [h₁, h₂, lt_of_lt_of_le h₃ bb]
+theorem repr_le_repr_iff {x y} (hx : NF x) (hy : NF y) : repr x ≤ repr y ↔ x ≤ y := by
+  rw [← not_lt, ← not_lt, repr_lt_repr_iff hy hx]
 
-theorem NF.below_of_lt {e n a b} (H : repr e < b) :
-    NF (PreCantor.oadd e n a) → NFBelow (PreCantor.oadd e n a) b
-  | ⟨⟨b', h⟩⟩ => by (cases' h with _ _ _ _ eb _ h₁ h₂ h₃; exact NFBelow.oadd' h₁ h₂ H)
+theorem repr_inj {x y} (hx : NF x) (hy : NF y) : repr x = repr y ↔ x = y := by
+  rw [le_antisymm_iff, le_antisymm_iff, repr_le_repr_iff hx hy, repr_le_repr_iff hy hx]
 
-theorem NF.below_of_lt' : ∀ {o b}, repr o < ω ^ b → NF o → NFBelow o b
-  | 0, _, _, _ => NFBelow.zero
-  | PreCantor.oadd _ _ _, _, H, h =>
-    h.below_of_lt <|
-      (opow_lt_opow_iff_right one_lt_omega0).1 <| lt_of_le_of_lt (omega0_le_oadd _ _ _) H
+theorem NF.repr_lt_oadd (hx : NF (oadd e n a)) : repr a < ω ^ repr e := by
+  simpa [repr_oadd] using repr_lt_repr_of_lt hx.snd (hx.fst.oadd_zero 1) hx.lt_oadd
 
-theorem nfBelow_ofNat : ∀ n, NFBelow (ofNat n) 1
-  | 0 => NFBelow.zero
-  | Nat.succ _ => NFBelow.oadd NF.zero NFBelow.zero zero_lt_one
+theorem NF.repr_oadd_lt_snd (hx : NF (oadd e n a)) {m} (hn : n < m) :
+    repr (oadd e n a) < ω ^ repr e * m := by
+  have : (n + 1 : Ordinal) ≤ m := mod_cast Nat.succ_le_of_lt hn
+  apply lt_of_lt_of_le _ ((Ordinal.mul_le_mul_iff_left omega0_opow_pos).2 this)
+  simpa [repr_oadd, mul_succ] using repr_lt_repr_of_lt hx.snd (hx.fst.oadd_zero 1) hx.lt_oadd
 
-instance nf_ofNat (n) : NF (ofNat n) :=
-  ⟨⟨_, nfBelow_ofNat n⟩⟩
+theorem NF.repr_oadd_lt_fst (hx : NF (oadd e n a)) {o} (he : repr e < o) :
+    repr (oadd e n a) < ω ^ o :=
+  (hx.repr_oadd_lt_snd n.lt_succ_self).trans <| omega0_opow_mul_nat_lt he _
 
-instance nf_one : NF 1 := by rw [← ofNat_one]; infer_instance
-
-theorem oadd_lt_oadd_1 {e₁ n₁ o₁ e₂ n₂ o₂} (h₁ : NF (oadd e₁ n₁ o₁)) (h : e₁ < e₂) :
-    oadd e₁ n₁ o₁ < oadd e₂ n₂ o₂ :=
-  @lt_of_lt_of_le _ _ (repr (oadd e₁ n₁ o₁)) _ _
-    (NF.below_of_lt h h₁).repr_lt (omega0_le_oadd e₂ n₂ o₂)
-
-theorem oadd_lt_oadd_2 {e o₁ o₂ : PreCantor} {n₁ n₂ : ℕ+} (h₁ : NF (oadd e n₁ o₁)) (h : (n₁ : ℕ) < n₂) :
-    oadd e n₁ o₁ < oadd e n₂ o₂ := by
-  simp only [lt_def, repr]
-  refine lt_of_lt_of_le ((add_lt_add_iff_left _).2 h₁.snd'.repr_lt) (le_trans ?_ (le_add_right _ _))
-  rwa [← mul_succ,Ordinal.mul_le_mul_iff_left (opow_pos _ omega0_pos), succ_le_iff, Nat.cast_lt]
-
-theorem oadd_lt_oadd_3 {e n a₁ a₂} (h : a₁ < a₂) : oadd e n a₁ < oadd e n a₂ := by
-  rw [lt_def]; unfold repr
-  exact @add_lt_add_left _ _ _ _ (repr a₁) _ h _
-
-theorem cmp_compares : ∀ (a b : PreCantor) [NF a] [NF b], (cmp a b).Compares a b
-  | 0, 0, _, _ => rfl
-  | oadd _ _ _, 0, _, _ => oadd_pos _ _ _
-  | 0, oadd _ _ _, _, _ => oadd_pos _ _ _
-  | o₁@(oadd e₁ n₁ a₁), o₂@(oadd e₂ n₂ a₂), h₁, h₂ => by -- TODO: golf
-    rw [cmp]
-    have IHe := @cmp_compares _ _ h₁.fst h₂.fst
-    simp only [Ordering.Compares, gt_iff_lt] at IHe; revert IHe
-    cases cmp e₁ e₂
-    case lt => intro IHe; exact oadd_lt_oadd_1 h₁ IHe
-    case gt => intro IHe; exact oadd_lt_oadd_1 h₂ IHe
-    case eq =>
-      intro IHe; dsimp at IHe; subst IHe
-      unfold _root_.cmp; cases nh : cmpUsing (· < ·) (n₁ : ℕ) n₂ <;>
-      rw [cmpUsing, ite_eq_iff, not_lt] at nh
-      case lt =>
-        cases' nh with nh nh
-        · exact oadd_lt_oadd_2 h₁ nh.left
-        · rw [ite_eq_iff] at nh; cases' nh.right with nh nh <;> cases nh <;> contradiction
-      case gt =>
-        cases' nh with nh nh
-        · cases nh; contradiction
-        · cases' nh with _ nh
-          rw [ite_eq_iff] at nh; cases' nh with nh nh
-          · exact oadd_lt_oadd_2 h₂ nh.left
-          · cases nh; contradiction
-      cases' nh with nh nh
-      · cases nh; contradiction
-      cases' nh with nhl nhr
-      rw [ite_eq_iff] at nhr
-      cases' nhr with nhr nhr
-      · cases nhr; contradiction
-      obtain rfl := Subtype.eq (nhl.eq_of_not_lt nhr.1)
-      have IHa := @cmp_compares _ _ h₁.snd h₂.snd
-      revert IHa; cases cmp a₁ a₂ <;> intro IHa <;> dsimp at IHa
-      case lt => exact oadd_lt_oadd_3 IHa
-      case gt => exact oadd_lt_oadd_3 IHa
-      subst IHa; exact rfl
-
-theorem repr_inj {a b} [NF a] [NF b] : repr a = repr b ↔ a = b :=
-  ⟨fun e => match cmp a b, cmp_compares a b with
-    | Ordering.lt, (h : repr a < repr b) => (ne_of_lt h e).elim
-    | Ordering.gt, (h : repr a > repr b)=> (ne_of_gt h e).elim
-    | Ordering.eq, h => h,
-    congr_arg _⟩
-
-theorem NF.of_dvd_omega0_opow {b e n a} (h : NF (PreCantor.oadd e n a))
-    (d : ω ^ b ∣ repr (PreCantor.oadd e n a)) :
+theorem NF.of_dvd_omega0_opow {b e n a} (h : NF (oadd e n a))
+    (d : ω ^ b ∣ repr (oadd e n a)) :
     b ≤ repr e ∧ ω ^ b ∣ repr a := by
-  have := mt repr_inj.1 (fun h => by injection h : PreCantor.oadd e n a ≠ 0)
+  sorry
+  /-have := mt repr_inj.1 (fun h => by injection h : PreCantor.oadd e n a ≠ 0)
   have L := le_of_not_lt fun l => not_le_of_lt (h.below_of_lt l).repr_lt (le_of_dvd this d)
   simp only [repr] at d
-  exact ⟨L, (dvd_add_iff <| (opow_dvd_opow _ L).mul_right _).1 d⟩
+  exact ⟨L, (dvd_add_iff <| (opow_dvd_opow _ L).mul_right _).1 d⟩-/
 
 @[deprecated (since := "2024-09-30")]
 alias NF.of_dvd_omega_opow := NF.of_dvd_omega0_opow
 
 theorem NF.of_dvd_omega0 {e n a} (h : NF (PreCantor.oadd e n a)) :
     ω ∣ repr (PreCantor.oadd e n a) → repr e ≠ 0 ∧ ω ∣ repr a := by
-  (rw [← opow_one ω, ← one_le_iff_ne_zero]; exact h.of_dvd_omega0_opow)
+  rw [← opow_one ω, ← one_le_iff_ne_zero]
+  exact h.of_dvd_omega0_opow
 
 @[deprecated (since := "2024-09-30")]
 alias NF.of_dvd_omega := NF.of_dvd_omega0
 
-/-- `TopBelow b o` asserts that the largest exponent in `o`, if it exists, is less than `b`. This is
-an auxiliary definition for decidability of `NF`. -/
-def TopBelow (b : PreCantor) : PreCantor → Prop
-  | 0 => True
-  | oadd e _ _ => cmp e b = Ordering.lt
+/-! ### Addition -/
 
-instance decidableTopBelow : DecidableRel TopBelow := by
-  intro b o
-  cases o <;> delta TopBelow <;> infer_instance
-
-theorem nfBelow_iff_topBelow {b} [NF b] : ∀ {o}, NFBelow o (repr b) ↔ NF o ∧ TopBelow b o
-  | 0 => ⟨fun h => ⟨⟨⟨_, h⟩⟩, trivial⟩, fun _ => NFBelow.zero⟩
-  | oadd _ _ _ =>
-    ⟨fun h => ⟨⟨⟨_, h⟩⟩, (@cmp_compares _ b h.fst _).eq_lt.2 h.lt⟩, fun ⟨h₁, h₂⟩ =>
-      h₁.below_of_lt <| (@cmp_compares _ b h₁.fst _).eq_lt.1 h₂⟩
-
-instance decidableNF : DecidablePred NF
-  | 0 => isTrue NF.zero
-  | oadd e n a => by
-    have := decidableNF e
-    have := decidableNF a
-    apply decidable_of_iff (NF e ∧ NF a ∧ TopBelow e a)
-    rw [← and_congr_right fun h => @nfBelow_iff_topBelow _ h _]
-    exact ⟨fun ⟨h₁, h₂⟩ => NF.oadd h₁ n h₂, fun h => ⟨h.fst, h.snd'⟩⟩
-
-/-- Auxiliary definition for `add` -/
-def addAux (e : PreCantor) (n : ℕ+) (o : PreCantor) : PreCantor :=
-    match o with
-    | 0 => oadd e n 0
-    | o'@(oadd e' n' a') =>
-      match cmp e e' with
-      | Ordering.lt => o'
-      | Ordering.eq => oadd e (n + n') a'
-      | Ordering.gt => oadd e n o'
-
-/-- Addition of ordinal notations (correct only for normal input) -/
+/-- Addition of Cantor normal forms (correct only for normal input) -/
 def add : PreCantor → PreCantor → PreCantor
-  | 0, o => o
-  | oadd e n a, o => addAux e n (add a o)
+  | 0, o | o, 0 => o
+  | oadd e₁ n₁ a₁, x₂@(oadd e₂ n₂ a₂) =>
+    match cmp e₁ e₂ with
+    | Ordering.lt => x₂
+    | Ordering.eq => oadd e₁ (n₁ + n₂) a₂
+    | Ordering.gt => oadd e₁ n₁ (add a₁ x₂)
 
 instance : Add PreCantor :=
   ⟨add⟩
 
 @[simp]
-theorem zero_add (o : PreCantor) : 0 + o = o :=
+theorem add_def (x y : PreCantor) : add x y = x + y :=
   rfl
 
-theorem oadd_add (e n a o) : oadd e n a + o = addAux e n (a + o) :=
-  rfl
+@[simp]
+theorem zero_add (x : PreCantor) : 0 + x = x := by
+  cases x <;> rfl
+
+@[simp]
+theorem add_zero (x : PreCantor) : x + 0 = x := by
+  cases x <;> rfl
+
+theorem oadd_add_oadd_of_lt (h : e₁ < e₂) : oadd e₁ n₁ a₁ + oadd e₂ n₂ a₂ = oadd e₂ n₂ a₂ := by
+  rw [← add_def, add, h.cmp_eq_lt]
+
+theorem oadd_add_oadd_of_eq : oadd e n₁ a₁ + oadd e n₂ a₂ = oadd e (n₁ + n₂) a₂ := by
+  rw [← add_def, add, _root_.cmp_self_eq_eq]
+
+theorem oadd_add_oadd_of_gt (h : e₂ < e₁) :
+    oadd e₁ n₁ a₁ + oadd e₂ n₂ a₂ = oadd e₁ n₁ (a₁ + oadd e₂ n₂ a₂) := by
+  rw [← add_def, add, h.cmp_eq_gt, add_def]
+
+theorem repr_add : ∀ {x y}, NF x → NF y → repr (x + y) = repr x + repr y
+  | 0, o, _, _ | o, 0, _, _ => by simp
+  | oadd e₁ n₁ a₁, oadd e₂ n₂ a₂, hx, hy => by
+    obtain h | rfl | h := lt_trichotomy e₁ e₂
+    · rw [oadd_add_oadd_of_lt h]
+      apply (add_absorp (b := repr e₂) _ _).symm
+      · exact hx.repr_oadd_lt_fst (repr_lt_repr_of_lt hx.fst hy.fst h)
+      · exact fst_le_repr_oadd _ _ _
+    · rw [oadd_add_oadd_of_eq, repr_oadd, repr_oadd, PNat.add_coe, Nat.cast_add, mul_add,
+        add_assoc, add_assoc, add_left_cancel]
+      apply (add_absorp (b := repr e₁) _ _).symm
+      · exact hx.repr_lt_oadd
+      · exact fst_le_repr_oadd _ _ _
+    · rw [oadd_add_oadd_of_gt h, repr_oadd, repr_add hx.snd hy]
+      simp [repr_oadd, add_assoc]
+
+
+#exit
+
+
 
 /-- Subtraction of ordinal notations (correct only for normal input) -/
 def sub : PreCantor → PreCantor → PreCantor
@@ -521,49 +512,6 @@ def sub : PreCantor → PreCantor → PreCantor
 
 instance : Sub PreCantor :=
   ⟨sub⟩
-
-theorem add_nfBelow {b} : ∀ {o₁ o₂}, NFBelow o₁ b → NFBelow o₂ b → NFBelow (o₁ + o₂) b
-  | 0, _, _, h₂ => h₂
-  | oadd e n a, o, h₁, h₂ => by
-    have h' := add_nfBelow (h₁.snd.mono <| le_of_lt h₁.lt) h₂
-    simp only [oadd_add]; revert h'; cases' a + o with e' n' a' <;> intro h'
-    · exact NFBelow.oadd h₁.fst NFBelow.zero h₁.lt
-    have : ((e.cmp e').Compares e e') := @cmp_compares _ _ h₁.fst h'.fst
-    cases h : cmp e e' <;> dsimp [addAux] <;> simp only [h]
-    · exact h'
-    · simp only [h] at this
-      subst e'
-      exact NFBelow.oadd h'.fst h'.snd h'.lt
-    · simp only [h] at this
-      exact NFBelow.oadd h₁.fst (NF.below_of_lt this ⟨⟨_, h'⟩⟩) h₁.lt
-
-instance add_nf (o₁ o₂) : ∀ [NF o₁] [NF o₂], NF (o₁ + o₂)
-  | ⟨⟨b₁, h₁⟩⟩, ⟨⟨b₂, h₂⟩⟩ =>
-    ⟨(le_total b₁ b₂).elim (fun h => ⟨b₂, add_nfBelow (h₁.mono h) h₂⟩) fun h =>
-        ⟨b₁, add_nfBelow h₁ (h₂.mono h)⟩⟩
-
-@[simp]
-theorem repr_add : ∀ (o₁ o₂) [NF o₁] [NF o₂], repr (o₁ + o₂) = repr o₁ + repr o₂
-  | 0, o, _, _ => by simp
-  | oadd e n a, o, h₁, h₂ => by
-    haveI := h₁.snd; have h' := repr_add a o
-    conv_lhs at h' => simp [HAdd.hAdd, Add.add]
-    have nf := PreCantor.add_nf a o
-    conv at nf => simp [HAdd.hAdd, Add.add]
-    conv in _ + o => simp [HAdd.hAdd, Add.add]
-    cases' h : add a o with e' n' a' <;>
-      simp only [Add.add, add, addAux, h'.symm, h, add_assoc, repr] at nf h₁ ⊢
-    have := h₁.fst; haveI := nf.fst; have ee := cmp_compares e e'
-    cases he : cmp e e' <;> simp only [he, Ordering.compares_gt, Ordering.compares_lt,
-        Ordering.compares_eq, repr, gt_iff_lt, PNat.add_coe, Nat.cast_add] at ee ⊢
-    · rw [← add_assoc, @add_absorp _ (repr e') (ω ^ repr e' * (n' : ℕ))]
-      · have := (h₁.below_of_lt ee).repr_lt
-        unfold repr at this
-        cases he' : e' <;> simp only [he', zero_def, opow_zero, repr, gt_iff_lt] at this ⊢ <;>
-        exact lt_of_le_of_lt (le_add_right _ _) this
-      · simpa using (Ordinal.mul_le_mul_iff_left <| opow_pos (repr e') omega0_pos).2
-          (Nat.cast_le.2 n'.pos)
-    · rw [ee, ← add_assoc, ← mul_add]
 
 theorem sub_nfBelow : ∀ {o₁ o₂ b}, NFBelow o₁ b → NF o₂ → NFBelow (o₁ - o₂) b
   | 0, o, b, _, h₂ => by cases o <;> exact NFBelow.zero
