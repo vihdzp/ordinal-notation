@@ -481,20 +481,28 @@ theorem repr_add : ∀ {x y}, NF x → NF y → repr (x + y) = repr x + repr y
   | oadd e₁ n₁ a₁, oadd e₂ n₂ a₂, hx, hy => by
     obtain h | rfl | h := lt_trichotomy e₁ e₂
     · rw [oadd_add_oadd_of_lt h]
-      apply (add_absorp (b := repr e₂) _ _).symm
-      · exact hx.repr_oadd_lt_fst (repr_lt_repr_of_lt hx.fst hy.fst h)
-      · exact fst_le_repr_oadd _ _ _
+      exact (add_absorp (hx.repr_oadd_lt_fst (repr_lt_repr_of_lt hx.fst hy.fst h))
+        (fst_le_repr_oadd _ _ _)).symm
     · rw [oadd_add_oadd_of_eq, repr_oadd, repr_oadd, PNat.add_coe, Nat.cast_add, mul_add,
         add_assoc, add_assoc, add_left_cancel]
-      apply (add_absorp (b := repr e₁) _ _).symm
-      · exact hx.repr_lt_oadd
-      · exact fst_le_repr_oadd _ _ _
+      exact (add_absorp hx.repr_lt_oadd (fst_le_repr_oadd _ _ _)).symm
     · rw [oadd_add_oadd_of_gt h, repr_oadd, repr_add hx.snd hy]
       simp [repr_oadd, add_assoc]
 
+theorem NF.add : ∀ {x y}, NF x → NF y → NF (x + y)
+  | 0, o, _, _ | o, 0, _, _ => by simpa
+  | oadd e₁ n₁ a₁, oadd e₂ n₂ a₂, hx, hy => by
+    obtain h | rfl | h := lt_trichotomy e₁ e₂
+    · rwa [oadd_add_oadd_of_lt h]
+    · rw [oadd_add_oadd_of_eq, NF_oadd_iff]
+      exact ⟨hx.fst, hy.snd, hy.lt_oadd⟩
+    · rw [oadd_add_oadd_of_gt h, NF_oadd_iff]
+      use hx.fst, hx.snd.add hy
+      rw [← repr_lt_repr_iff (hx.snd.add hy) (hx.fst.oadd_zero 1), repr_add hx.snd hy]
+      simpa [repr_oadd] using principal_add_omega0_opow _ hx.repr_lt_oadd
+        (hy.repr_oadd_lt_fst (repr_lt_repr_of_lt hy.fst hx.fst h))
 
-#exit
-
+/-! ### Subtraction -/
 
 
 /-- Subtraction of ordinal notations (correct only for normal input) -/
@@ -571,6 +579,7 @@ theorem repr_sub : ∀ (o₁ o₂) [NF o₁] [NF o₂], repr (o₁ - o₂) = rep
         (Ordinal.sub_eq_of_add_eq <|
             add_absorp (h₂.below_of_lt ee).repr_lt <| omega0_le_oadd _ _ _).symm
 
+#exit
 /-- Multiplication of ordinal notations (correct only for normal input) -/
 def mul : PreCantor → PreCantor → PreCantor
   | 0, _ => 0
