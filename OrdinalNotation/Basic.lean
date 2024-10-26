@@ -33,7 +33,7 @@ modified from the Mathlib original, to fix what I percieve to be various weaknes
 - The definition of `add` is simplified.
 -/
 
-open Ordinal Order
+open Ordinal Order Ordering
 
 /-- Recursive definition of the Cantor normal form ordinal notation. `zero` denotes the ordinal `0`,
 and `oadd e n a` is intended to refer to `ω ^ e * n + a`.
@@ -165,8 +165,6 @@ instance : Repr PreCantor where
 -- almost everything else.
 section cmp
 
-open Ordering
-
 /-- Comparison of `PreCantor` is performed lexicographically.
 
 `ω ^ e₁ * n₁ + a₁` is less than `ω ^ e₂ * n₂ + a₂` when either `e₁ < e₂`, or `e₁ = e₂` and
@@ -259,9 +257,9 @@ instance : Preorder PreCantor where
 
 private theorem cmp_compares (x y : PreCantor) : (x.cmp y).Compares x y :=
   match h : x.cmp y with
-  | Ordering.lt => h
-  | Ordering.eq => by rwa [cmp_eq_eq_iff] at h
-  | Ordering.gt => by rw [compares_gt, gt_iff_lt, lt_def, ← x.cmp_swap, h]; rfl
+  | lt => h
+  | eq => by rwa [cmp_eq_eq_iff] at h
+  | gt => by rw [compares_gt, gt_iff_lt, lt_def, ← x.cmp_swap, h]; rfl
 
 instance : LinearOrder PreCantor :=
   linearOrderOfCompares PreCantor.cmp PreCantor.cmp_compares
@@ -324,7 +322,7 @@ inductive NF : PreCantor → Prop
 
 protected alias NF.oadd := NF.oadd'
 
-theorem NF_oadd_iff {e n a} : NF (oadd e n a) ↔ NF e ∧ NF a ∧ a < oadd e 1 0 := by
+theorem NF_oadd_iff : NF (oadd e n a) ↔ NF e ∧ NF a ∧ a < oadd e 1 0 := by
   refine ⟨?_, fun ⟨he, ha, h⟩ ↦ he.oadd ha h⟩
   rintro ⟨⟩
   refine ⟨?_, ?_, ?_⟩
@@ -342,24 +340,27 @@ private def decidable_NF : DecidablePred NF := fun x ↦
 instance : DecidablePred NF :=
   decidable_NF
 
-theorem NF.fst {e n a} (h : NF (oadd e n a)) : NF e := by
+theorem NF.fst (h : NF (oadd e n a)) : NF e := by
   rw [NF_oadd_iff] at h
   exact h.1
 
-theorem NF.snd {e n a} (h : NF (oadd e n a)) : NF a := by
+theorem NF.snd (h : NF (oadd e n a)) : NF a := by
   rw [NF_oadd_iff] at h
   exact h.2.1
 
-theorem NF.lt_oadd {e n a} (h : NF (oadd e n a)) : a < oadd e 1 0 := by
+theorem NF.lt_oadd (h : NF (oadd e n a)) : a < oadd e 1 0 := by
   rw [NF_oadd_iff] at h
   exact h.2.2
 
-theorem NF.oadd_zero {e} (h : NF e) (n : ℕ+) : NF (oadd e n 0) :=
+theorem NF.oadd_zero (h : NF e) (n : ℕ+) : NF (oadd e n 0) :=
   h.oadd NF.zero (oadd_pos e n 0)
 
-theorem NF.zero_of_zero {e n a} (h : NF (oadd e n a)) (he : e = 0) : a = 0 := by
+theorem NF.zero_of_zero (h : NF (oadd e n a)) (he : e = 0) : a = 0 := by
   subst he
   simpa using h.lt_oadd
+
+theorem NF.with_nat (h : NF (oadd e n a)) (n') : NF (oadd e n' a) := by
+  rwa [NF_oadd_iff] at h ⊢
 
 theorem NF_natCast (n : ℕ) : NF n := by
   cases n
@@ -444,12 +445,12 @@ alias NF.of_dvd_omega := NF.of_dvd_omega0
 
 /-- Addition of Cantor normal forms (correct only for normal input) -/
 def add : PreCantor → PreCantor → PreCantor
-  | 0, o | o, 0 => o
+  | 0, x | x, 0 => x
   | oadd e₁ n₁ a₁, x₂@(oadd e₂ n₂ a₂) =>
     match cmp e₁ e₂ with
-    | Ordering.lt => x₂
-    | Ordering.eq => oadd e₁ (n₁ + n₂) a₂
-    | Ordering.gt => oadd e₁ n₁ (add a₁ x₂)
+    | lt => x₂
+    | eq => oadd e₁ (n₁ + n₂) a₂
+    | gt => oadd e₁ n₁ (add a₁ x₂)
 
 instance : Add PreCantor :=
   ⟨add⟩
@@ -469,6 +470,7 @@ theorem add_zero (x : PreCantor) : x + 0 = x := by
 theorem oadd_add_oadd_of_lt (h : e₁ < e₂) : oadd e₁ n₁ a₁ + oadd e₂ n₂ a₂ = oadd e₂ n₂ a₂ := by
   rw [← add_def, add, h.cmp_eq_lt]
 
+@[simp]
 theorem oadd_add_oadd_of_eq : oadd e n₁ a₁ + oadd e n₂ a₂ = oadd e (n₁ + n₂) a₂ := by
   rw [← add_def, add, _root_.cmp_self_eq_eq]
 
@@ -477,7 +479,7 @@ theorem oadd_add_oadd_of_gt (h : e₂ < e₁) :
   rw [← add_def, add, h.cmp_eq_gt, add_def]
 
 theorem repr_add : ∀ {x y}, NF x → NF y → repr (x + y) = repr x + repr y
-  | 0, o, _, _ | o, 0, _, _ => by simp
+  | 0, x, _, _ | x, 0, _, _ => by simp
   | oadd e₁ n₁ a₁, oadd e₂ n₂ a₂, hx, hy => by
     obtain h | rfl | h := lt_trichotomy e₁ e₂
     · rw [oadd_add_oadd_of_lt h]
@@ -490,12 +492,12 @@ theorem repr_add : ∀ {x y}, NF x → NF y → repr (x + y) = repr x + repr y
       simp [repr_oadd, add_assoc]
 
 theorem NF.add : ∀ {x y}, NF x → NF y → NF (x + y)
-  | 0, o, _, _ | o, 0, _, _ => by simpa
+  | 0, x, _, _ | x, 0, _, _ => by simpa
   | oadd e₁ n₁ a₁, oadd e₂ n₂ a₂, hx, hy => by
     obtain h | rfl | h := lt_trichotomy e₁ e₂
     · rwa [oadd_add_oadd_of_lt h]
-    · rw [oadd_add_oadd_of_eq, NF_oadd_iff]
-      exact ⟨hx.fst, hy.snd, hy.lt_oadd⟩
+    · rw [oadd_add_oadd_of_eq]
+      exact hy.with_nat _
     · rw [oadd_add_oadd_of_gt h, NF_oadd_iff]
       use hx.fst, hx.snd.add hy
       rw [← repr_lt_repr_iff (hx.snd.add hy) (hx.fst.oadd_zero 1), repr_add hx.snd hy]
@@ -504,80 +506,87 @@ theorem NF.add : ∀ {x y}, NF x → NF y → NF (x + y)
 
 /-! ### Subtraction -/
 
-
-/-- Subtraction of ordinal notations (correct only for normal input) -/
+/-- Subtraction of Cantor normal forms (correct only for normal input) -/
 def sub : PreCantor → PreCantor → PreCantor
   | 0, _ => 0
   | o, 0 => o
-  | o₁@(oadd e₁ n₁ a₁), oadd e₂ n₂ a₂ =>
+  | x₁@(oadd e₁ n₁ a₁), oadd e₂ n₂ a₂ =>
     match cmp e₁ e₂ with
-    | Ordering.lt => 0
-    | Ordering.gt => o₁
-    | Ordering.eq =>
-      match (n₁ : ℕ) - n₂ with
-      | 0 => if n₁ = n₂ then sub a₁ a₂ else 0
-      | Nat.succ k => oadd e₁ k.succPNat a₁
+    | lt => 0
+    | gt => x₁
+    | eq =>
+      match cmp n₁ n₂ with
+      | lt => 0
+      | eq => sub a₁ a₂
+      | gt => oadd e₁ (n₁ - n₂) a₁
 
 instance : Sub PreCantor :=
   ⟨sub⟩
 
-theorem sub_nfBelow : ∀ {o₁ o₂ b}, NFBelow o₁ b → NF o₂ → NFBelow (o₁ - o₂) b
-  | 0, o, b, _, h₂ => by cases o <;> exact NFBelow.zero
-  | oadd _ _ _, 0, _, h₁, _ => h₁
-  | oadd e₁ n₁ a₁, oadd e₂ n₂ a₂, b, h₁, h₂ => by
-    have h' := sub_nfBelow h₁.snd h₂.snd
-    simp only [HSub.hSub, Sub.sub, sub] at h' ⊢
-    have := @cmp_compares _ _ h₁.fst h₂.fst
-    cases h : cmp e₁ e₂
-    · apply NFBelow.zero
-    · rw [Nat.sub_eq]
-      simp only [h, Ordering.compares_eq] at this
-      subst e₂
-      cases (n₁ : ℕ) - n₂
-      · by_cases en : n₁ = n₂ <;> simp only [en, ↓reduceIte]
-        · exact h'.mono (le_of_lt h₁.lt)
-        · exact NFBelow.zero
-      · exact NFBelow.oadd h₁.fst h₁.snd h₁.lt
-    · exact h₁
-
-instance sub_nf (o₁ o₂) : ∀ [NF o₁] [NF o₂], NF (o₁ - o₂)
-  | ⟨⟨b₁, h₁⟩⟩, h₂ => ⟨⟨b₁, sub_nfBelow h₁ h₂⟩⟩
+@[simp]
+theorem sub_def (x y : PreCantor) : sub x y = x - y :=
+  rfl
 
 @[simp]
-theorem repr_sub : ∀ (o₁ o₂) [NF o₁] [NF o₂], repr (o₁ - o₂) = repr o₁ - repr o₂
-  | 0, o, _, h₂ => by cases o <;> exact (Ordinal.zero_sub _).symm
-  | oadd _ _ _, 0, _, _ => (Ordinal.sub_zero _).symm
-  | oadd e₁ n₁ a₁, oadd e₂ n₂ a₂, h₁, h₂ => by
-    haveI := h₁.snd; haveI := h₂.snd; have h' := repr_sub a₁ a₂
-    conv_lhs at h' => dsimp [HSub.hSub, Sub.sub, sub]
-    conv_lhs => dsimp only [HSub.hSub, Sub.sub]; dsimp only [sub]
-    have ee := @cmp_compares _ _ h₁.fst h₂.fst
-    cases h : cmp e₁ e₂ <;> simp only [h] at ee
-    · rw [Ordinal.sub_eq_zero_iff_le.2]
-      · rfl
-      exact le_of_lt (oadd_lt_oadd_1 h₁ ee)
-    · change e₁ = e₂ at ee
-      subst e₂
-      dsimp only
-      cases mn : (n₁ : ℕ) - n₂ <;> dsimp only
-      · by_cases en : n₁ = n₂
-        · simpa [en]
-        · simp only [en, ite_false]
-          exact
-            (Ordinal.sub_eq_zero_iff_le.2 <|
-                le_of_lt <|
-                  oadd_lt_oadd_2 h₁ <|
-                    lt_of_le_of_ne (tsub_eq_zero_iff_le.1 mn) (mt PNat.eq en)).symm
-      · simp [Nat.succPNat]
-        rw [(tsub_eq_iff_eq_add_of_le <| le_of_lt <| Nat.lt_of_sub_eq_succ mn).1 mn, add_comm,
-          Nat.cast_add, mul_add, add_assoc, add_sub_add_cancel]
-        refine
-          (Ordinal.sub_eq_of_add_eq <|
-              add_absorp h₂.snd'.repr_lt <| le_trans ?_ (le_add_right _ _)).symm
-        exact Ordinal.le_mul_left _ (Nat.cast_lt.2 <| Nat.succ_pos _)
-    · exact
-        (Ordinal.sub_eq_of_add_eq <|
-            add_absorp (h₂.below_of_lt ee).repr_lt <| omega0_le_oadd _ _ _).symm
+theorem zero_sub (x : PreCantor) : 0 - x = 0 := by
+  cases x <;> rfl
+
+@[simp]
+theorem sub_zero (x : PreCantor) : x - 0 = x := by
+  cases x <;> rfl
+
+theorem oadd_sub_oadd_of_lt (h : e₁ < e₂) : oadd e₁ n₁ a₁ - oadd e₂ n₂ a₂ = 0 := by
+  rw [← sub_def, sub, h.cmp_eq_lt]
+
+theorem oadd_sub_oadd_of_gt (h : e₂ < e₁) :
+    oadd e₁ n₁ a₁ - oadd e₂ n₂ a₂ = oadd e₁ n₁ a₁ := by
+  rw [← sub_def, sub, h.cmp_eq_gt]
+
+theorem oadd_sub_oadd_of_eq_of_lt (h : n₁ < n₂) : oadd e n₁ a₁ - oadd e n₂ a₂ = 0 := by
+  rw [← sub_def, sub, _root_.cmp_self_eq_eq, h.cmp_eq_lt]
+
+@[simp]
+theorem oadd_sub_oadd_of_eq_of_eq : oadd e n a₁ - oadd e n a₂ = a₁ - a₂ := by
+  rw [← sub_def, sub, _root_.cmp_self_eq_eq, _root_.cmp_self_eq_eq, sub_def]
+
+theorem oadd_sub_oadd_of_eq_of_gt (h : n₂ < n₁) :
+    oadd e n₁ a₁ - oadd e n₂ a₂ = oadd e (n₁ - n₂) a₁ := by
+  rw [← sub_def, sub, _root_.cmp_self_eq_eq, h.cmp_eq_gt]
+
+theorem repr_sub : ∀ {x y}, NF x → NF y → repr (x - y) = repr x - repr y
+  | 0, _, _, _ | _, 0, _, _ => by simp
+  | oadd e₁ n₁ a₁, oadd e₂ n₂ a₂, hx, hy => by
+    obtain he | rfl | he := lt_trichotomy e₁ e₂
+    · rw [oadd_sub_oadd_of_lt he, repr_zero, eq_comm, Ordinal.sub_eq_zero_iff_le,
+        repr_le_repr_iff hx hy]
+      exact (oadd_lt_oadd_fst he).le
+    · obtain hn | rfl | hn := lt_trichotomy n₁ n₂
+      · rw [oadd_sub_oadd_of_eq_of_lt hn, repr_zero, eq_comm, Ordinal.sub_eq_zero_iff_le,
+          repr_le_repr_iff hx hy]
+        exact (oadd_lt_oadd_snd hn).le
+      · rw [oadd_sub_oadd_of_eq_of_eq, repr_oadd, repr_oadd, add_sub_add_cancel,
+          repr_sub hx.snd hy.snd]
+      · rw [oadd_sub_oadd_of_eq_of_gt hn]
+        apply (sub_eq_of_add_eq _).symm
+        rw [← repr_add hy (hx.with_nat _), oadd_add_oadd_of_eq, PNat.add_sub_of_lt hn]
+    · rw [oadd_sub_oadd_of_gt he]
+      apply (sub_eq_of_add_eq _).symm
+      rw [← repr_add hy hx, oadd_add_oadd_of_lt he]
+
+theorem NF.sub : ∀ {x y}, NF x → NF y → NF (x - y)
+  | 0, _, _, _ | _, 0, _, _ => by simpa
+  | oadd e₁ n₁ a₁, oadd e₂ n₂ a₂, hx, hy => by
+    obtain he | rfl | he := lt_trichotomy e₁ e₂
+    · rw [oadd_sub_oadd_of_lt he]
+      exact NF.zero
+    · obtain hn | rfl | hn := lt_trichotomy n₁ n₂
+      · rw [oadd_sub_oadd_of_eq_of_lt hn]
+        exact NF.zero
+      · rw [oadd_sub_oadd_of_eq_of_eq]
+        exact hx.snd.sub hy.snd
+      · rw [oadd_sub_oadd_of_eq_of_gt hn]
+        exact hx.with_nat _
+    · rwa [oadd_sub_oadd_of_gt he]
 
 #exit
 /-- Multiplication of ordinal notations (correct only for normal input) -/
