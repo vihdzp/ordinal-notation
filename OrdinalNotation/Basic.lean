@@ -75,6 +75,9 @@ theorem zero_def : zero = 0 :=
 instance : Inhabited PreCantor :=
   ⟨0⟩
 
+@[simp] theorem sizeOf_zero : sizeOf 0 = 0 :=
+  rfl
+
 /-- The ordinal `1` is represented as `oadd 0 1 0 = ω ^ 0 * 1 + 0`. -/
 instance : One PreCantor :=
   ⟨oadd 0 1 0⟩
@@ -83,9 +86,17 @@ instance : One PreCantor :=
 theorem one_def : oadd 0 1 0 = 1 :=
   rfl
 
+@[simp]
+theorem sizeOf_one : sizeOf 1 = 1 :=
+  rfl
+
 /-- The ordinal `ω` is represented as `oadd 1 1 0 = ω ^ 1 * 1 + 0`. -/
 def omega : PreCantor :=
   oadd 1 1 0
+
+@[simp]
+theorem sizeOf_omega : sizeOf omega = 5 :=
+  rfl
 
 /-- The ordinal denoted by a notation.
 
@@ -513,7 +524,7 @@ theorem NF.add : ∀ {x y}, NF x → NF y → NF (x + y)
 /-- Subtraction of Cantor normal forms (correct only for normal input) -/
 def sub : PreCantor → PreCantor → PreCantor
   | 0, _ => 0
-  | o, 0 => o
+  | x, 0 => x
   | x₁@(oadd e₁ n₁ a₁), oadd e₂ n₂ a₂ =>
     match cmp e₁ e₂ with
     | lt => 0
@@ -684,10 +695,98 @@ theorem NF.mul : ∀ {x y}, NF x → NF y → NF (x * y)
     rw [repr_add hx.fst hy.fst, opow_add, repr_oadd,
       mul_natCast_add_mul_of_isLimit hx.add_absorp isLimit_omega0_opow_repr_oadd n₁.pos]
 
+/-! ### Exponentiation -/
+
+/-- Evaluates `n ^ x` -/
+def natOpow (n : ℕ+) (x : PreCantor) : PreCantor :=
+  if n = 1 then 1 else
+    match x with
+    | 0 => 1
+    | oadd 0 m _ => Nat.pow n m
+    | oadd (oadd 0 n₂ _) n₁ a => oadd (oadd n₂.natPred n₁ 0) 1 0 * natOpow n a
+    | oadd e n₁ a => oadd (oadd e n₁ a) 1 0
+
+@[simp]
+theorem one_natOpow (x : PreCantor) : natOpow 1 x = 1 := by
+  rw [natOpow.eq_def, if_pos rfl]
+
+@[simp]
+theorem natOpow_zero (n : ℕ+) : natOpow n 0 = 1 := by
+  rw [natOpow.eq_def]
+  split <;> rfl
+
+theorem NF.natOpow (n : ℕ+) {x : PreCantor} (hx : NF x) : NF (natOpow n x) := by
+  obtain rfl | hn := eq_or_ne n 1
+  · rw [one_natOpow]
+    exact NF_one
+  · rw [natOpow.eq_def, if_neg hn]
+    split
+    · exact NF_one
+    · exact NF_natCast _
+    · exact (((NF_natCast _).oadd_zero _).oadd_zero _).mul (NF.natOpow _ hx.snd)
+    · exact hx.oadd_zero _
+
+private theorem repr_natOpow (n : ℕ+) {x : PreCantor} (hx : NF x) :
+    repr (natOpow n x) = n ^ repr x := by
+  obtain rfl | hn := eq_or_ne n 1
+  · simp
+  · rw [natOpow.eq_def, if_neg hn]
+    split
+    · simp
+    · obtain rfl := hx.zero_of_zero
+      simp
+    · rename_i n₁ a₁ e₂ n₂ a₂
+      rw [repr_mul (((NF_natCast _).oadd_zero _).oadd_zero _) (hx.snd.natOpow _),
+        repr_natOpow _ hx.snd]
+      suffices ω ^ ω ^ a₁.natPred = (↑↑n ^ ω ^ (a₁ : Ordinal)) ^ ω ^ e₂.repr by
+        simp [this, opow_add, opow_mul]
+      sorry
+    · simp
+      sorry
+
 #exit
+
+/-- Exponentiation of ordinal notations (correct only for normal input) -/
+def opow (x y : PreCantor) : PreCantor :=
+  match y with
+  | 0 => 1
+  | oadd e₂ n₂ a₂ =>
+    match x with
+    | 0 => 0
+    | oadd 0 n _ => natOpow n x
+    | oadd e₁@(oadd _ _ _) _ _ =>
+      match e₂ with
+      | 0 => npowRec n₂ x
+      | _ => oadd (e₁ * oadd e₂ n₂ 0) 1 0 * opow x a₂
+
+instance : Pow PreCantor PreCantor :=
+  ⟨opow⟩
+
+@[simp]
+theorem opow_def (x y : PreCantor) : opow x y = x ^ y :=
+  rfl
+
+@[simp]
+theorem opow_zero (x : PreCantor) : x ^ (0 : PreCantor) = 1 :=
+  rfl
+
+@[simp]
+theorem zero_opow_oadd (e n a) : (0 : PreCantor) ^ oadd e n a = 0 :=
+  rfl
+
+@[simp]
+theorem one_opow (x : PreCantor) : (1 : PreCantor) ^ x = 1 := by
+  cases x <;> rfl
 
 
 #exit
+
+@[simp]
+theorem pow_def (x : PreCantor) (n : ℕ) : pow x n = x ^ (n : PreCantor) :=
+  sorry
+
+#exit
+
 /-- Calculate division and remainder of `o` mod `ω`:
 
 `split' o = (a, n)` means `o = ω * a + n`. -/
@@ -748,6 +847,12 @@ def opow (o₁ o₂ : PreCantor) : PreCantor := opowAux2 o₂ (split o₁)
 instance : Pow PreCantor PreCantor :=
   ⟨opow⟩
 
+#eval toString <| oadd 13 3 (oadd 7 2 4) * oadd 13 3 (oadd 7 2 4) * oadd 13 3 (oadd 7 2 4)
+
+#exit
+
+
+#exit
 theorem opow_def (o₁ o₂ : PreCantor) : o₁ ^ o₂ = opowAux2 o₂ (split o₁) :=
   rfl
 
