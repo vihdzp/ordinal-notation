@@ -36,6 +36,7 @@ modified from the Mathlib original, to fix what I percieve to be various weaknes
 
 open Ordinal Order Ordering
 
+set_option genSizeOfSpec false in
 /-- Recursive definition of the Cantor normal form ordinal notation. `zero` denotes the ordinal `0`,
 and `oadd e n a` is intended to refer to `ω ^ e * n + a`.
 
@@ -132,7 +133,7 @@ instance : NatCast PreCantor where
 
 @[simp] theorem natCast_zero : (0 : ℕ) = (0 : PreCantor) := rfl
 @[simp] theorem natCast_succ (n : ℕ) : n.succ = oadd 0 n.succPNat 0 := rfl
-@[simp] theorem natCast_one : (1 : ℕ) = (1 : PreCantor) := rfl
+theorem natCast_one : (1 : ℕ) = (1 : PreCantor) := rfl
 
 theorem oadd_zero_pNat_zero (n : ℕ+) : oadd 0 n 0 = n := by
   rw [← n.succPNat_natPred]
@@ -331,6 +332,7 @@ inductive NF : PreCantor → Prop
   /-- `ω ^ e * n + a` is a normal form when `e` and `a` are normal forms with `a < ω ^ e`. -/
   | oadd' {e n a} : NF e → NF a → a < oadd e 1 0 → NF (oadd e n a)
 
+@[nolint defLemma]
 protected alias NF.oadd := NF.oadd'
 
 theorem NF_oadd_iff : NF (oadd e n a) ↔ NF e ∧ NF a ∧ a < oadd e 1 0 := by
@@ -673,11 +675,9 @@ def natOpow (n : ℕ+) (x : PreCantor) : PreCantor :=
     | oadd (oadd 0 n₂ _) n₁ a => oadd (oadd n₂.natPred n₁ 0) 1 0 * natOpow n a
     | oadd e@(oadd (oadd _ _ _) _ _) n₁ a => oadd (oadd e n₁ 0) 1 0 * natOpow n a
 
-@[simp]
 theorem one_natOpow (x : PreCantor) : natOpow 1 x = 1 := by
   rw [natOpow.eq_def, if_pos rfl]
 
-@[simp]
 theorem natOpow_zero (n : ℕ+) : natOpow n 0 = 1 := by
   rw [natOpow.eq_def]
   split <;> rfl
@@ -762,7 +762,7 @@ theorem natOpow_def (n : ℕ+) (x : PreCantor) : natOpow n x = n ^ x := by
   · rename_i h h'
     rw [oadd_inj] at h
     rw [h.2.1]
-  all_goals simp at *
+  all_goals simp [natOpow_zero] at *
 
 theorem opow_oadd₄ : (oadd (oadd e₁ n₂ a₂) n₁ a₁) ^ oadd (oadd e₂ n₄ a₄) n₃ a₃ =
     oadd (oadd e₁ n₂ a₂ * oadd (oadd e₂ n₄ a₄) n₃ 0) 1 0 * oadd (oadd e₁ n₂ a₂) n₁ a₁ ^ a₃ := by
@@ -831,8 +831,8 @@ theorem repr_opow : ∀ {x y}, NF x → NF y → repr (x ^ y) = repr x ^ repr y
       repr_oadd, repr_mul hx.fst hy.fst.oadd_zero]
     simp
 
-#eval toString <| oadd 13 3 (oadd 7 2 4) * oadd 13 3 (oadd 7 2 4) * oadd 13 3 (oadd 7 2 4)
-
+#eval toString <| (omega + 1) ^ (omega + 1) ^ (omega + 1)
+#lint
 #exit
 
 /-- Given an ordinal, returns:
