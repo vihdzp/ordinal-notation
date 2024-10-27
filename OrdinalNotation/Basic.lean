@@ -57,7 +57,7 @@ compile_inductive% PreCantor
 
 namespace PreCantor
 
-variable {e a e₁ a₁ e₂ a₂ : PreCantor} {n₁ n₂ : ℕ+}
+variable {e a e₁ a₁ e₂ a₂ e₃ a₃ e₄ a₄ : PreCantor} {n₁ n₂ n₃ n₄ : ℕ+}
 
 /-! ### Basic instances -/
 
@@ -75,8 +75,8 @@ theorem zero_def : zero = 0 :=
 instance : Inhabited PreCantor :=
   ⟨0⟩
 
-@[simp] theorem sizeOf_zero : sizeOf 0 = 0 :=
-  rfl
+theorem oadd_ne_zero : oadd e n a ≠ 0 := fun h ↦ by
+  contradiction
 
 /-- The ordinal `1` is represented as `oadd 0 1 0 = ω ^ 0 * 1 + 0`. -/
 instance : One PreCantor :=
@@ -86,17 +86,9 @@ instance : One PreCantor :=
 theorem one_def : oadd 0 1 0 = 1 :=
   rfl
 
-@[simp]
-theorem sizeOf_one : sizeOf 1 = 1 :=
-  rfl
-
 /-- The ordinal `ω` is represented as `oadd 1 1 0 = ω ^ 1 * 1 + 0`. -/
 def omega : PreCantor :=
   oadd 1 1 0
-
-@[simp]
-theorem sizeOf_omega : sizeOf omega = 5 :=
-  rfl
 
 /-- The ordinal denoted by a notation.
 
@@ -122,11 +114,14 @@ theorem fst_le_repr_oadd (e n a) : ω ^ repr e ≤ repr (oadd e n a) :=
 theorem repr_oadd_pos : 0 < repr (oadd e n a) :=
   omega0_opow_pos.trans_le <| fst_le_repr_oadd e n a
 
+theorem repr_oadd_ne_zero : repr (oadd e n a) ≠ 0 :=
+  repr_oadd_pos.ne'
+
 @[simp]
 theorem repr_eq_zero {x : PreCantor} : repr x = 0 ↔ x = 0 := by
   cases x
   · simp
-  · simpa using repr_oadd_pos.ne'
+  · simpa using repr_oadd_ne_zero
 
 /-- Casts a natural number into a `PreCantor` -/
 instance : NatCast PreCantor where
@@ -367,7 +362,7 @@ theorem NF.lt_oadd (h : NF (oadd e n a)) : a < oadd e 1 0 := by
   rw [NF_oadd_iff] at h
   exact h.2.2
 
-theorem NF.oadd_zero (h : NF e) (n : ℕ+) : NF (oadd e n 0) :=
+theorem NF.oadd_zero (h : NF e) {n : ℕ+} : NF (oadd e n 0) :=
   h.oadd NF.zero (oadd_pos e n 0)
 
 theorem NF.zero_of_zero (h : NF (oadd 0 n a)) : a = 0 := by
@@ -379,7 +374,7 @@ theorem NF.with_nat (h : NF (oadd e n a)) (n') : NF (oadd e n' a) := by
 theorem NF_natCast (n : ℕ) : NF n := by
   cases n
   · exact NF.zero
-  · exact NF.oadd_zero NF.zero _
+  · exact NF.oadd_zero NF.zero
 
 theorem NF_one : NF 1 :=
   NF_natCast 1
@@ -390,7 +385,7 @@ theorem repr_lt_repr_of_lt : ∀ {x y}, NF x → NF y → x < y → repr x < rep
   | oadd e₁ n₁ a₁, oadd e₂ n₂ a₂, hx, hy, h => by
     rw [oadd_lt_oadd] at h
     have H : repr (oadd e₁ n₁ a₁) < ω ^ e₁.repr * (n₁ + 1 : ℕ+) := by
-      simpa [mul_succ] using repr_lt_repr_of_lt hx.snd (hx.fst.oadd_zero 1) hx.lt_oadd
+      simpa [mul_succ] using repr_lt_repr_of_lt hx.snd hx.fst.oadd_zero hx.lt_oadd
     obtain he | ⟨rfl, hn | ⟨rfl, ha⟩⟩ := h
     · calc
         _ < ω ^ e₁.repr * (n₁ + 1 : ℕ+) := H
@@ -423,7 +418,7 @@ theorem repr_inj {x y} (hx : NF x) (hy : NF y) : repr x = repr y ↔ x = y := by
   rw [le_antisymm_iff, le_antisymm_iff, repr_le_repr_iff hx hy, repr_le_repr_iff hy hx]
 
 theorem NF.repr_lt_oadd (hx : NF (oadd e n a)) : repr a < ω ^ repr e := by
-  simpa [repr_oadd] using repr_lt_repr_of_lt hx.snd (hx.fst.oadd_zero 1) hx.lt_oadd
+  simpa [repr_oadd] using repr_lt_repr_of_lt hx.snd hx.fst.oadd_zero hx.lt_oadd
 
 theorem NF.add_absorp_mul (hx : NF (oadd e n a)) : repr a + ω ^ repr e * n = ω ^ repr e * n :=
   Ordinal.add_absorp hx.repr_lt_oadd (Ordinal.le_mul_left _ (mod_cast n.pos))
@@ -435,7 +430,7 @@ theorem NF.repr_oadd_lt_snd (hx : NF (oadd e n a)) {m} (hn : n < m) :
     repr (oadd e n a) < ω ^ repr e * m := by
   have : (n + 1 : Ordinal) ≤ m := mod_cast Nat.succ_le_of_lt hn
   apply lt_of_lt_of_le _ ((Ordinal.mul_le_mul_iff_left omega0_opow_pos).2 this)
-  simpa [repr_oadd, mul_succ] using repr_lt_repr_of_lt hx.snd (hx.fst.oadd_zero 1) hx.lt_oadd
+  simpa [repr_oadd, mul_succ] using repr_lt_repr_of_lt hx.snd hx.fst.oadd_zero hx.lt_oadd
 
 theorem NF.repr_oadd_lt_fst (hx : NF (oadd e n a)) {o} (he : repr e < o) :
     repr (oadd e n a) < ω ^ o :=
@@ -515,7 +510,7 @@ theorem NF.add : ∀ {x y}, NF x → NF y → NF (x + y)
       exact hy.with_nat _
     · rw [oadd_add_oadd_of_gt h, NF_oadd_iff]
       use hx.fst, hx.snd.add hy
-      rw [← repr_lt_repr_iff (hx.snd.add hy) (hx.fst.oadd_zero 1), repr_add hx.snd hy]
+      rw [← repr_lt_repr_iff (hx.snd.add hy) hx.fst.oadd_zero, repr_add hx.snd hy]
       simpa [repr_oadd] using principal_add_omega0_opow _ hx.repr_lt_oadd
         (hy.repr_oadd_lt_fst (repr_lt_repr_of_lt hy.fst hx.fst h))
 
@@ -630,8 +625,7 @@ theorem oadd_mul_oadd_zero : oadd e₁ n₁ a₁ * oadd 0 n₂ a₂ = oadd e₁ 
 theorem oadd_mul_pNat {n' : ℕ+} : oadd e n a * n' = oadd e (n * n') a := by
   rw [← oadd_zero_pNat_zero, oadd_mul_oadd_zero]
 
-@[simp]
-theorem oadd_mul_oadd_oadd {e₃ n₃ a₃} : oadd e₁ n₁ a₁ * oadd (oadd e₃ n₃ a₃) n₂ a₂ =
+theorem oadd_mul_oadd_oadd : oadd e₁ n₁ a₁ * oadd (oadd e₃ n₃ a₃) n₂ a₂ =
     oadd (e₁ + oadd e₃ n₃ a₃) n₂ (oadd e₁ n₁ a₁ * a₂) :=
   rfl
 
@@ -655,6 +649,10 @@ private theorem natCast_mul_of_isLimit {n : ℕ} (hn : 0 < n) {o : Ordinal} (ho 
   obtain ⟨a, rfl⟩ := ho.2
   rw [← mul_assoc, natCast_mul_omega0 hn]
 
+theorem mul_ofNat_of_isLimit (n : ℕ) [n.AtLeastTwo] {o : Ordinal} (ho : IsLimit o) :
+    (no_index (OfNat.ofNat n)) * o = o :=
+  natCast_mul_of_isLimit n.pos_of_neZero ho
+
 -- TODO: move to Mathlib
 theorem mul_natCast_add_mul_of_isLimit {a b c : Ordinal} (h : b + a = a) (hc : c.IsLimit)
     {n : ℕ} (hn : 0 < n) : (a * n + b) * c = a * c := by
@@ -663,8 +661,9 @@ theorem mul_natCast_add_mul_of_isLimit {a b c : Ordinal} (h : b + a = a) (hc : c
   · contradiction
   · rw [add_comm, Nat.cast_add, Nat.cast_one, mul_one_add, ← add_assoc, h]
 
-private theorem isLimit_omega0_opow_repr_oadd : IsLimit (ω ^ repr (oadd e n a)) :=
-  isLimit_opow_left isLimit_omega0 repr_oadd_pos.ne'
+-- TODO: move to Mathlib
+private theorem isLimit_omega0_opow {o : Ordinal} (ho : o ≠ 0) : IsLimit (ω ^ o) :=
+  isLimit_opow_left isLimit_omega0 ho
 
 theorem repr_mul : ∀ {x y}, NF x → NF y → repr (x * y) = repr x * repr y
   | 0, x, _, _ | x, 0, _, _ => by simp
@@ -678,7 +677,7 @@ theorem repr_mul : ∀ {x y}, NF x → NF y → repr (x * y) = repr x * repr y
     congr 1
     rw [← mul_assoc, mul_natCast_add_mul_of_isLimit hx.add_absorp _ n₁.pos,
       repr_add hx.fst hy.fst, opow_add, repr_oadd, mul_assoc]
-    exact isLimit_omega0_opow_repr_oadd
+    exact isLimit_omega0_opow repr_oadd_pos.ne'
 
 theorem NF.mul : ∀ {x y}, NF x → NF y → NF (x * y)
   | 0, x, _, _ | x, 0, _, _ => by simpa
@@ -689,22 +688,22 @@ theorem NF.mul : ∀ {x y}, NF x → NF y → NF (x * y)
     rw [oadd_mul_oadd_oadd, NF_oadd_iff]
     have H := hx.mul hy.snd
     use hx.fst.add hy.fst, H
-    rw [← repr_lt_repr_iff H ((hx.fst.add hy.fst).oadd_zero 1), repr_mul hx hy.snd,
+    rw [← repr_lt_repr_iff H (hx.fst.add hy.fst).oadd_zero, repr_mul hx hy.snd,
       repr_oadd, repr_oadd, PNat.val_ofNat, Nat.cast_one, mul_one, repr_zero, add_zero]
     apply ((mul_lt_mul_iff_left repr_oadd_pos).2 hy.repr_lt_oadd).trans_le
     rw [repr_add hx.fst hy.fst, opow_add, repr_oadd,
-      mul_natCast_add_mul_of_isLimit hx.add_absorp isLimit_omega0_opow_repr_oadd n₁.pos]
+      mul_natCast_add_mul_of_isLimit hx.add_absorp (isLimit_omega0_opow repr_oadd_pos.ne') n₁.pos]
 
 /-! ### Exponentiation -/
 
-/-- Evaluates `n ^ x` -/
+/-- Evaluates `n ^ x` for `n : ℕ+` (correct only for normal input) -/
 def natOpow (n : ℕ+) (x : PreCantor) : PreCantor :=
   if n = 1 then 1 else
     match x with
     | 0 => 1
     | oadd 0 m _ => Nat.pow n m
     | oadd (oadd 0 n₂ _) n₁ a => oadd (oadd n₂.natPred n₁ 0) 1 0 * natOpow n a
-    | oadd e n₁ a => oadd (oadd e n₁ a) 1 0
+    | oadd e@(oadd (oadd _ _ _) _ _) n₁ a => oadd (oadd e n₁ 0) 1 0 * natOpow n a
 
 @[simp]
 theorem one_natOpow (x : PreCantor) : natOpow 1 x = 1 := by
@@ -715,7 +714,7 @@ theorem natOpow_zero (n : ℕ+) : natOpow n 0 = 1 := by
   rw [natOpow.eq_def]
   split <;> rfl
 
-theorem NF.natOpow (n : ℕ+) {x : PreCantor} (hx : NF x) : NF (natOpow n x) := by
+theorem NF.natOpow {n : ℕ+} {x : PreCantor} (hx : NF x) : NF (natOpow n x) := by
   obtain rfl | hn := eq_or_ne n 1
   · rw [one_natOpow]
     exact NF_one
@@ -723,41 +722,74 @@ theorem NF.natOpow (n : ℕ+) {x : PreCantor} (hx : NF x) : NF (natOpow n x) := 
     split
     · exact NF_one
     · exact NF_natCast _
-    · exact (((NF_natCast _).oadd_zero _).oadd_zero _).mul (NF.natOpow _ hx.snd)
-    · exact hx.oadd_zero _
+    · exact (NF_natCast _).oadd_zero.oadd_zero.mul hx.snd.natOpow
+    · exact hx.fst.oadd_zero.oadd_zero.mul hx.snd.natOpow
 
-private theorem repr_natOpow (n : ℕ+) {x : PreCantor} (hx : NF x) :
+-- TODO: move to Mathlib
+theorem natCast_opow_omega0 {n : ℕ} (hn : 1 < n) : n ^ ω = ω := by
+  apply (right_le_opow _ (mod_cast hn)).antisymm' <| le_of_forall_lt fun a ↦ ?_
+  rw [lt_opow_of_limit (mod_cast hn.ne_bot) isLimit_omega0]
+  rintro ⟨m, hm, ha⟩
+  obtain ⟨m, rfl⟩ := lt_omega0.1 hm
+  apply ha.trans
+  rw [← natCast_opow]
+  exact nat_lt_omega0 _
+
+-- TODO: move to Mathlib
+theorem natCast_opow_omega0_opow_succ {n : ℕ} (hn : 1 < n) (a : ℕ) :
+    n ^ ω ^ (a + 1) = ω ^ ω ^ a := by
+  rw [add_comm, pow_add, pow_one, opow_mul, natCast_opow_omega0 hn]
+
+-- TODO: move to Mathlib
+theorem one_add_of_isLimit {a : Ordinal} (ha : IsLimit a) : 1 + a = a :=
+  one_add_of_omega0_le (omega0_le_of_isLimit ha)
+
+-- TODO: move to Mathlib
+theorem natCast_opow_omega0_opow_limit {n : ℕ} (hn : 1 < n) {a : Ordinal} (ha : IsLimit a) :
+    n ^ ω ^ a = ω ^ ω ^ a := by
+  conv_lhs => rw [← one_add_of_isLimit ha, opow_add, opow_one, opow_mul, natCast_opow_omega0 hn]
+
+-- TODO: move to Mathlib
+theorem one_add_omega0_opow_mul {a b : Ordinal} (ha : a ≠ 0) (hb : b ≠ 0) :
+    1 + ω ^ a * b = ω ^ a * b :=
+  one_add_of_omega0_le <| (left_le_opow _ ha.bot_lt).trans (Ordinal.le_mul_left _ hb.bot_lt)
+
+-- TODO: move to Mathlib
+theorem one_add_omega0_opow {a : Ordinal} (ha : a ≠ 0) : 1 + ω ^ a = ω ^ a :=
+  by simpa using one_add_omega0_opow_mul ha one_ne_zero
+
+-- TODO: maybe move to Mathlib?
+theorem PNat.one_lt_of_ne {n : ℕ+} (hn : n ≠ 1) : 1 < n := by
+  rwa [ne_eq, ← PNat.le_one_iff, not_le] at hn
+
+theorem repr_natOpow (n : ℕ+) {x : PreCantor} (hx : NF x) :
     repr (natOpow n x) = n ^ repr x := by
-  obtain rfl | hn := eq_or_ne n 1
-  · simp
-  · rw [natOpow.eq_def, if_neg hn]
+  obtain rfl | hn := n.one_le.eq_or_lt
+  · simp [one_natOpow]
+  · rw [natOpow.eq_def, if_neg hn.ne']
+    change 1 < (n : ℕ) at hn
     split
     · simp
     · obtain rfl := hx.zero_of_zero
       simp
-    · rename_i n₁ a₁ e₂ n₂ a₂
-      rw [repr_mul (((NF_natCast _).oadd_zero _).oadd_zero _) (hx.snd.natOpow _),
-        repr_natOpow _ hx.snd]
-      suffices ω ^ ω ^ a₁.natPred = (↑↑n ^ ω ^ (a₁ : Ordinal)) ^ ω ^ e₂.repr by
-        simp [this, opow_add, opow_mul]
-      sorry
-    · simp
-      sorry
-
-#exit
+    · obtain rfl := hx.fst.zero_of_zero
+      rename_i n₁ a₁ n₂ a₂
+      rw [repr_mul (NF_natCast _).oadd_zero.oadd_zero hx.snd.natOpow, repr_natOpow _ hx.snd]
+      suffices ω ^ ω ^ a₁.natPred = ((n : Ordinal.{0}) ^ ω ^ (a₁ : ℕ)) by
+        simp [opow_add, opow_mul, this]
+      rw [← a₁.natPred_add_one, natCast_opow_omega0_opow_succ hn]
+    · rw [repr_mul hx.fst.oadd_zero.oadd_zero hx.snd.natOpow, repr_natOpow _ hx.snd, repr_oadd,
+        ← natCast_opow_omega0 hn, ← opow_mul, repr_oadd, mul_add, ← mul_assoc, ← opow_one_add,
+        repr_oadd, ← add_assoc, one_add_omega0_opow_mul repr_oadd_pos.ne' (mod_cast PNat.ne_zero _)]
+      simp [opow_add, opow_mul]
 
 /-- Exponentiation of ordinal notations (correct only for normal input) -/
-def opow (x y : PreCantor) : PreCantor :=
-  match y with
-  | 0 => 1
-  | oadd e₂ n₂ a₂ =>
-    match x with
-    | 0 => 0
-    | oadd 0 n _ => natOpow n x
-    | oadd e₁@(oadd _ _ _) _ _ =>
-      match e₂ with
-      | 0 => npowRec n₂ x
-      | _ => oadd (e₁ * oadd e₂ n₂ 0) 1 0 * opow x a₂
+def opow : PreCantor → PreCantor → PreCantor
+  | _, 0 => 1
+  | 0, _ => 0
+  | oadd 0 n _, x => natOpow n x
+  | x@(oadd (oadd _ _ _) _ _), oadd 0 n _ => npowRec n x
+  | x@(oadd e₁@(oadd _ _ _) _ _), oadd e₂ n₂ a₂ => oadd (e₁ * oadd e₂ n₂ 0) 1 0 * opow x a₂
 
 instance : Pow PreCantor PreCantor :=
   ⟨opow⟩
@@ -767,23 +799,117 @@ theorem opow_def (x y : PreCantor) : opow x y = x ^ y :=
   rfl
 
 @[simp]
-theorem opow_zero (x : PreCantor) : x ^ (0 : PreCantor) = 1 :=
-  rfl
+theorem opow_zero (x : PreCantor) : x ^ (0 : PreCantor) = 1 := by
+  rw [← opow_def, opow.eq_def]
+  split <;> first | rfl | contradiction
 
 @[simp]
 theorem zero_opow_oadd (e n a) : (0 : PreCantor) ^ oadd e n a = 0 :=
   rfl
 
+/-- This variant of `one_opow` does not assume the LHS is the normalized form for `1`. -/
 @[simp]
-theorem one_opow (x : PreCantor) : (1 : PreCantor) ^ x = 1 := by
-  cases x <;> rfl
-
-
-#exit
+theorem one_opow' (x : PreCantor) : (oadd 0 1 a) ^ x = 1 := by
+  rw [← opow_def, opow.eq_def]
+  split
+  pick_goal 3
+  · convert ← one_natOpow _
+    rename_i h h'
+    rw [oadd_inj] at h
+    exact h.2.1
+  all_goals simp at *
 
 @[simp]
-theorem pow_def (x : PreCantor) (n : ℕ) : pow x n = x ^ (n : PreCantor) :=
-  sorry
+theorem one_opow (x : PreCantor) : (1 : PreCantor) ^ x = 1 :=
+  one_opow' x
+
+@[simp]
+theorem natOpow_def (n : ℕ+) (x : PreCantor) : natOpow n x = n ^ x := by
+  rw [← opow_def, opow.eq_def, ← oadd_zero_pNat_zero]
+  split
+  pick_goal 3
+  · rename_i h h'
+    rw [oadd_inj] at h
+    rw [h.2.1]
+  all_goals simp at *
+
+theorem opow_oadd₄ : (oadd (oadd e₁ n₂ a₂) n₁ a₁) ^ oadd (oadd e₂ n₄ a₄) n₃ a₃ =
+    oadd (oadd e₁ n₂ a₂ * oadd (oadd e₂ n₄ a₄) n₃ 0) 1 0 * oadd (oadd e₁ n₂ a₂) n₁ a₁ ^ a₃ := by
+  rw [← opow_def, opow.eq_def]
+  split
+  pick_goal 5
+  · rename_i h₁ h₂
+    simp_rw [oadd_inj] at h₁ h₂
+    obtain ⟨⟨rfl, rfl, rfl⟩, rfl, rfl⟩ := h₁
+    obtain ⟨rfl, rfl, rfl⟩ := h₂
+    rfl
+  all_goals simp at *
+
+theorem NF.npowRec (hx : NF x) : ∀ n : ℕ, NF (npowRec n x)
+  | 0 => NF_one
+  | n + 1 => (hx.npowRec n).mul hx
+
+theorem repr_npowRec (hx : NF x) : ∀ n : ℕ, repr (_root_.npowRec n x) = repr x ^ n
+  | 0 => repr_one
+  | n + 1 => by
+    rw [pow_succ, ← repr_npowRec hx]
+    exact repr_mul (hx.npowRec n) hx
+
+theorem NF.opow : ∀ {x y}, NF x → NF y → NF (x ^ y)
+  | _, 0, _, _ => by rw [opow_zero]; exact NF_one
+  | 0, oadd _ _ _, _, _ => NF.zero
+  | oadd 0 n _, x, hy, hx => by
+    rw [hy.zero_of_zero, oadd_zero_pNat_zero, ← natOpow_def]
+    exact hx.natOpow
+  | (oadd (oadd _ _ _) _ _), oadd 0 n _, hx, _ => hx.npowRec n
+  | (oadd (oadd e₁ n₂ a₂) n₁ a₁), oadd (oadd e₂ n₄ a₄) n₃ a₃, hx, hy => by
+    rw [opow_oadd₄]
+    exact (hx.fst.mul hy.fst.oadd_zero).oadd_zero.mul (hx.opow hy.snd)
+
+-- TODO: move to Mathlib
+theorem mul_two (a : Ordinal) : a * 2 = a + a := by
+  rw [← one_add_one_eq_two, mul_add, mul_one]
+
+-- TODO: move to Mathlib
+theorem succ_mul_of_isLimit {a b : Ordinal} (ha : a ≠ 0) (hb : IsLimit b) : succ a * b = a * b := by
+  apply (mul_le_mul_right' (le_succ a) _).antisymm'
+  have : succ a ≤ a + a := add_le_add_left (Ordinal.one_le_iff_ne_zero.2 ha) _
+  apply (mul_le_mul_right' (add_le_add_left (Ordinal.one_le_iff_ne_zero.2 ha) _) _).trans
+  rw [← mul_two, mul_assoc, mul_ofNat_of_isLimit _ hb]
+
+theorem repr_oadd_opow (h : NF (oadd e n a)) (he : e ≠ 0)
+    {o : Ordinal} (ho : IsLimit o) : repr (oadd e n a) ^ o = ω ^ (repr e * o) := by
+  apply _root_.le_antisymm
+  · apply (opow_le_opow_left _ (h.repr_oadd_lt_fst (lt_succ _)).le).trans_eq
+    rw [← opow_mul, succ_mul_of_isLimit _ ho]
+    rwa [ne_eq, repr_eq_zero]
+  · rw [opow_mul]
+    exact (opow_le_opow_left _ (fst_le_repr_oadd e n a))
+
+theorem repr_oadd_opow_repr_oadd (hx : NF (oadd e₁ n₁ a₁)) (he₁ : e₁ ≠ 0) (he₂ : e₂ ≠ 0) :
+    repr (oadd e₁ n₁ a₁) ^ repr (oadd e₂ n₂ a₂) = ω ^ (repr e₁ * repr (oadd e₂ n₂ 0))
+      * repr (oadd e₁ n₁ a₁) ^ repr a₂ := by
+  rw [repr_oadd e₂, opow_add, repr_oadd_opow hx he₁]
+  · simp
+  · apply isLimit_mul_left (isLimit_opow_left isLimit_omega0 _) (mod_cast n₂.pos)
+    rwa [ne_eq, repr_eq_zero]
+
+theorem repr_opow : ∀ {x y}, NF x → NF y → repr (x ^ y) = repr x ^ repr y
+  | _, 0, _, _ => by simp
+  | 0, oadd _ _ _, _, _ => by
+    rw [zero_opow_oadd, repr_zero, repr_oadd, zero_opow]
+    exact repr_oadd_ne_zero
+  | oadd 0 n _, x, hy, hx => by
+    rw [hy.zero_of_zero, oadd_zero_pNat_zero, ← natOpow_def, repr_natCast, repr_natOpow _ hx]
+  | (oadd (oadd _ _ _) _ _), oadd 0 n _, hx, hy => by
+    obtain rfl := hy.zero_of_zero
+    apply (repr_npowRec hx _).trans
+    simp
+  | (oadd (oadd e₁ n₂ a₂) n₁ a₁), oadd (oadd e₂ n₄ a₄) n₃ a₃, hx, hy => by
+    rw [opow_oadd₄, repr_oadd_opow_repr_oadd hx oadd_ne_zero oadd_ne_zero,
+      repr_mul (hx.fst.mul hy.fst.oadd_zero).oadd_zero (hx.opow hy.snd), repr_opow hx hy.snd,
+      repr_oadd, repr_mul hx.fst hy.fst.oadd_zero]
+    simp
 
 #exit
 
