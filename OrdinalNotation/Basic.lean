@@ -36,7 +36,6 @@ modified from the Mathlib original, to fix what I percieve to be various weaknes
 
 open Ordinal Order Ordering
 
-set_option genSizeOfSpec false in
 /-- Recursive definition of the Cantor normal form ordinal notation. `zero` denotes the ordinal `0`,
 and `oadd e n a` is intended to refer to `ω ^ e * n + a`.
 
@@ -69,6 +68,8 @@ theorem oadd_inj : oadd e₁ n₁ a₁ = oadd e₂ n₂ a₂ ↔ e₁ = e₂ ∧
 /-- The ordinal `0` is represented as `zero`. -/
 instance : Zero PreCantor :=
   ⟨zero⟩
+
+attribute [nolint simpNF] zero.sizeOf_spec
 
 @[simp]
 theorem zero_def : zero = 0 :=
