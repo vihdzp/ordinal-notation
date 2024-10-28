@@ -1,13 +1,14 @@
 /-
 Copyright (c) 2018 Mario Carneiro. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Mario Carneiro
+Authors: Mario Carneiro, Violeta Hernández Palacios
 -/
 import Mathlib.Data.Ordering.Lemmas
 import Mathlib.Data.PNat.Basic
 import Mathlib.SetTheory.Ordinal.Principal
 import Mathlib.Tactic.NormNum
 import OrdinalNotation.ForMathlib
+import OrdinalNotation.FundamentalSequence
 
 /-!
 # Ordinal notation
@@ -209,6 +210,14 @@ theorem le_def (x y : PreCantor) : x ≤ y ↔ x.cmp y ≠ gt := Iff.rfl
 protected theorem zero_le (x : PreCantor) : 0 ≤ x := by
   cases x <;> simp [le_def, PreCantor.cmp]
 
+instance : OrderBot PreCantor where
+  bot := 0
+  bot_le := PreCantor.zero_le
+
+@[simp]
+protected theorem bot_eq_zero : (⊥ : PreCantor) = 0 :=
+  rfl
+
 theorem oadd_pos (e n a) : 0 < oadd e n a := rfl
 
 @[simp]
@@ -334,13 +343,13 @@ inductive NF : PreCantor → Prop
   /-- Zero is a normal form. -/
   | zero : NF 0
   /-- `ω ^ e * n + a` is a normal form when `e` and `a` are normal forms with `a < ω ^ e`. -/
-  | oadd' {e n a} : NF e → NF a → a < oadd e 1 0 → NF (oadd e n a)
+  | oadd' {e a} : NF e → (n : ℕ+) → NF a → a < oadd e 1 0 → NF (oadd e n a)
 
 @[nolint defLemma]
 protected alias NF.oadd := NF.oadd'
 
 theorem NF_oadd_iff : NF (oadd e n a) ↔ NF e ∧ NF a ∧ a < oadd e 1 0 := by
-  refine ⟨?_, fun ⟨he, ha, h⟩ ↦ he.oadd ha h⟩
+  refine ⟨?_, fun ⟨he, ha, h⟩ ↦ he.oadd n ha h⟩
   rintro ⟨⟩
   refine ⟨?_, ?_, ?_⟩
   assumption'
@@ -370,7 +379,7 @@ theorem NF.lt_oadd (h : NF (oadd e n a)) : a < oadd e 1 0 := by
   exact h.2.2
 
 theorem NF.oadd_zero (h : NF e) {n : ℕ+} : NF (oadd e n 0) :=
-  h.oadd NF.zero (oadd_pos e n 0)
+  h.oadd n NF.zero (oadd_pos e n 0)
 
 theorem NF.zero_of_zero (h : NF (oadd 0 n a)) : a = 0 := by
   simpa using h.lt_oadd
@@ -815,9 +824,146 @@ theorem repr_opow : ∀ {x y}, NF x → NF y → repr (x ^ y) = repr x ^ repr y
       repr_oadd, repr_mul hx.fst hy.fst.oadd_zero]
     simp
 
-#eval toString <| (omega + 1) ^ (omega + 1) ^ (omega + 1)
+end PreCantor
 
+/- ### Type of normal forms -/
 
+/-- The type of Cantor normal forms is the subtype of `PreCantor` with the `PreCantor.NF`
+property. -/
+def Cantor : Type :=
+  { x : PreCantor // x.NF }
+
+namespace Cantor
+
+instance : DecidableEq Cantor :=
+  inferInstanceAs (DecidableEq (Subtype _))
+
+open PreCantor
+
+theorem NF (x : Cantor) : NF x.1 :=
+  x.2
+
+@[ext]
+theorem ext {x y : Cantor} (h : x.1 = y.1) : x = y :=
+  Subtype.ext h
+
+/-- Construct a `Cantor` from an ordinal notation (and infer normality) -/
+def mk (o : PreCantor) (h : o.NF := by decide) : Cantor :=
+  ⟨o, h⟩
+
+instance : Zero Cantor :=
+  ⟨⟨0, NF.zero⟩⟩
+
+instance : Inhabited Cantor :=
+  ⟨0⟩
+
+instance : One Cantor :=
+  ⟨⟨1, NF_one⟩⟩
+
+instance : NatCast Cantor where
+  natCast n := ⟨n, NF_natCast n⟩
+
+instance : ToString Cantor :=
+  ⟨fun x => x.1.toString⟩
+
+instance : Repr Cantor :=
+  ⟨fun x prec => x.1.repr' prec⟩
+
+instance : LinearOrder Cantor :=
+  Subtype.instLinearOrder _
+
+instance : OrderBot Cantor :=
+  Subtype.orderBot NF.zero
+
+@[simp]
+protected theorem bot_eq_zero : (⊥ : Cantor) = 0 :=
+  rfl
+
+/-- The ordinal represented by an ordinal notation.
+
+This function is noncomputable because ordinal arithmetic is noncomputable. In computational
+applications `Cantor` can be used exclusively without reference to `Ordinal`, but this function
+allows for correctness results to be stated. -/
+noncomputable def repr : Cantor <i Ordinal where
+  toFun x := x.1.repr
+  inj' x y h := ext <| (PreCantor.repr_inj x.2 y.2).1 h
+  map_rel_iff' {x y} := PreCantor.repr_lt_repr_iff x.2 y.2
+  top := sorry -- TODO: this is ε₀
+  mem_range_iff_rel' := sorry
+
+theorem lt_wf : @WellFounded Cantor (· < ·) :=
+  repr.wellFounded wellFounded_lt
+
+instance : WellFoundedLT Cantor :=
+  ⟨lt_wf⟩
+
+instance : WellFoundedRelation Cantor :=
+  ⟨(· < ·), lt_wf⟩
+
+instance : IsWellOrder Cantor (· < ·) where
+
+/-- The `oadd` pseudo-constructor for `Cantor` -/
+def oadd (e : Cantor) (n : ℕ+) (a : Cantor) (h : a.1 < oadd e.1 1 0 := by decide) : Cantor :=
+  ⟨_, NF.oadd e.2 n a.2 h⟩
+
+/-- The ordinal `ω` is represented as `oadd 1 1 0 = ω ^ 1 * 1 + 0`. -/
+def omega : Cantor :=
+  oadd 1 1 0
+
+/-- This is a recursor-like theorem for `Cantor` suggesting an inductive definition, which can't
+actually be defined this way due to conflicting dependencies. -/
+@[elab_as_elim]
+def recOn {C : Cantor → Sort*} (o : Cantor) (H0 : C 0)
+    (H1 : ∀ e n a h, C e → C a → C (oadd e n a h)) : C o := by
+  cases' o with o h
+  induction' o with e n a IHe IHa
+  · exact H0
+  · exact H1 ⟨e, h.fst⟩ n ⟨a, h.snd⟩ h.lt_oadd (IHe _) (IHa _)
+
+@[simp]
+theorem recOn_zero {C : Cantor → Sort*} (H0 : C 0)
+    (H1 : ∀ e n a h, C e → C a → C (oadd e n a h)) : recOn 0 H0 H1 = H0 :=
+  rfl
+
+@[simp]
+theorem recOn_oadd {C : Cantor → Sort*} (e n a h) (H0 : C 0)
+    (H1 : ∀ e n a h, C e → C a → C (oadd e n a h)) :
+    recOn (oadd e n a h) H0 H1 = H1 e n a h (recOn e H0 H1) (recOn a H0 H1) :=
+  rfl
+
+/-- Addition of Cantor normal forms -/
+instance : Add Cantor :=
+  ⟨fun x y => ⟨_, x.2.add y.2⟩⟩
+
+@[simp]
+theorem repr_add (a b) : repr (a + b) = repr a + repr b :=
+  PreCantor.repr_add a.2 b.2
+
+/-- Subtraction of ordinal notations -/
+instance : Sub Cantor :=
+  ⟨fun x y => ⟨_, x.2.sub y.2⟩⟩
+
+@[simp]
+theorem repr_sub (a b) : repr (a - b) = repr a - repr b :=
+  PreCantor.repr_sub a.2 b.2
+
+/-- Multiplication of ordinal notations -/
+instance : Mul Cantor :=
+  ⟨fun x y => ⟨_, x.2.mul y.2⟩⟩
+
+@[simp]
+theorem repr_mul (a b) : repr (a * b) = repr a * repr b :=
+  PreCantor.repr_mul a.2 b.2
+
+/-- Exponentiation of ordinal notations -/
+instance : Pow Cantor Cantor :=
+  ⟨fun x y => ⟨_, x.2.opow y.2⟩⟩
+
+@[simp]
+theorem repr_opow (a b) : repr (a ^ b) = repr a ^ repr b :=
+  PreCantor.repr_opow a.2 b.2
+
+end Cantor
 
 #exit
 
@@ -1029,127 +1175,3 @@ theorem fastGrowingε₀_two : fastGrowingε₀ 2 = 2048 := by
     show oadd 0 (2 : Nat).succPNat 0 = 3 from rfl, @fastGrowing_succ 3 2 rfl]
 
 end PreCantor
-
-/-- The type of normal ordinal notations.
-
-It would have been nicer to define this right in the inductive type, but `NF o` requires `repr`
-which requires `PreCantor`, so all these things would have to be defined at once, which messes up the VM
-representation. -/
-def Cantor :=
-  { o : PreCantor // o.NF }
-
-instance : DecidableEq Cantor := by unfold Cantor; infer_instance
-
-namespace Cantor
-
-open PreCantor
-
-instance NF (o : Cantor) : NF o.1 :=
-  o.2
-
-/-- Construct a `Cantor` from an ordinal notation (and infer normality) -/
-def mk (o : PreCantor) [h : PreCantor.NF o] : Cantor :=
-  ⟨o, h⟩
-
-/-- The ordinal represented by an ordinal notation.
-
-This function is noncomputable because ordinal arithmetic is noncomputable. In computational
-applications `Cantor` can be used exclusively without reference to `Ordinal`, but this function
-allows for correctness results to be stated. -/
-noncomputable def repr (o : Cantor) : Ordinal :=
-  o.1.repr
-
-instance : ToString Cantor :=
-  ⟨fun x => x.1.toString⟩
-
-instance : Repr Cantor :=
-  ⟨fun x prec => x.1.repr' prec⟩
-
-instance : Preorder Cantor where
-  le x y := repr x ≤ repr y
-  lt x y := repr x < repr y
-  le_refl _ := @le_refl Ordinal _ _
-  le_trans _ _ _ := @le_trans Ordinal _ _ _ _
-  lt_iff_le_not_le _ _ := @lt_iff_le_not_le Ordinal _ _ _
-
-instance : Zero Cantor :=
-  ⟨⟨0, NF.zero⟩⟩
-
-instance : Inhabited Cantor :=
-  ⟨0⟩
-
-theorem lt_wf : @WellFounded Cantor (· < ·) :=
-  InvImage.wf repr Ordinal.lt_wf
-
-instance : WellFoundedLT Cantor :=
-  ⟨lt_wf⟩
-
-instance : WellFoundedRelation Cantor :=
-  ⟨(· < ·), lt_wf⟩
-
-/-- Convert a natural number to an ordinal notation -/
-def ofNat (n : ℕ) : Cantor :=
-  ⟨PreCantor.ofNat n, ⟨⟨_, nfBelow_ofNat _⟩⟩⟩
-
-/-- Compare ordinal notations -/
-def cmp (a b : Cantor) : Ordering :=
-  PreCantor.cmp a.1 b.1
-
-theorem cmp_compares : ∀ a b : Cantor, (cmp a b).Compares a b
-  | ⟨a, ha⟩, ⟨b, hb⟩ => by
-    dsimp [cmp]
-    have := PreCantor.cmp_compares a b
-    cases h : PreCantor.cmp a b <;> simp only [h] at this <;> try exact this
-    exact Subtype.mk_eq_mk.2 this
-
-instance : LinearOrder Cantor :=
-  linearOrderOfCompares cmp cmp_compares
-
-instance : IsWellOrder Cantor (· < ·) where
-
-/-- Asserts that `repr a < ω ^ repr b`. Used in `Cantor.recOn`. -/
-def below (a b : Cantor) : Prop :=
-  NFBelow a.1 (repr b)
-
-/-- The `oadd` pseudo-constructor for `Cantor` -/
-def oadd (e : Cantor) (n : ℕ+) (a : Cantor) (h : below a e) : Cantor :=
-  ⟨_, NF.oadd e.2 n h⟩
-
-/-- This is a recursor-like theorem for `Cantor` suggesting an inductive definition, which can't
-actually be defined this way due to conflicting dependencies. -/
-@[elab_as_elim]
-def recOn {C : Cantor → Sort*} (o : Cantor) (H0 : C 0)
-    (H1 : ∀ e n a h, C e → C a → C (oadd e n a h)) : C o := by
-  cases' o with o h; induction' o with e n a IHe IHa
-  · exact H0
-  · exact H1 ⟨e, h.fst⟩ n ⟨a, h.snd⟩ h.snd' (IHe _) (IHa _)
-
-/-- Addition of ordinal notations -/
-instance : Add Cantor :=
-  ⟨fun x y => mk (x.1 + y.1)⟩
-
-theorem repr_add (a b) : repr (a + b) = repr a + repr b :=
-  PreCantor.repr_add a.1 b.1
-
-/-- Subtraction of ordinal notations -/
-instance : Sub Cantor :=
-  ⟨fun x y => mk (x.1 - y.1)⟩
-
-theorem repr_sub (a b) : repr (a - b) = repr a - repr b :=
-  PreCantor.repr_sub a.1 b.1
-
-/-- Multiplication of ordinal notations -/
-instance : Mul Cantor :=
-  ⟨fun x y => mk (x.1 * y.1)⟩
-
-theorem repr_mul (a b) : repr (a * b) = repr a * repr b :=
-  PreCantor.repr_mul a.1 b.1
-
-/-- Exponentiation of ordinal notations -/
-def opow (x y : Cantor) :=
-  mk (x.1 ^ y.1)
-
-theorem repr_opow (a b) : repr (opow a b) = repr a ^ repr b :=
-  PreCantor.repr_opow a.1 b.1
-
-end Cantor
