@@ -85,17 +85,32 @@ example : FundamentalSequenceSystem ℕ
   | 0 => FundamentalSequence.ofIsMin isMin_bot
   | n + 1 => FundamentalSequence.ofCovby (Order.covBy_add_one n)
 
+/-- An auxiliary definition for `slowGrowing` and `fastGrowing`. The function `g` describes what
+happens at the successor step. -/
+private def growingAux (s : FundamentalSequenceSystem α) [WellFoundedLT α]
+    (x : α) (g : (ℕ → ℕ) → ℕ → ℕ) (n : ℕ) : ℕ :=
+  match s x with
+  | ⟨Sum.inl none, _, _⟩ => n + 1
+  | ⟨Sum.inl (some y), _, h⟩ => have := h.lt; g (growingAux s y g) n
+  | ⟨Sum.inr f, hs, hl⟩ => have := lt_of_strictMono_of_isLimit hs hl n; growingAux s (f n) g n
+termination_by wellFounded_lt.wrap x
+
+/-- The slow growing hierarchy, given a fundamental sequence system `s`, is defined as follows:
+* `fastGrowing s ⊥ n = n + 1`
+* `fastGrowing s (succ x) n = fastGrowing s x n + 1`
+* `fastGrowing s x n = fastGrowing s (f n) n`, where `f` is the fundamental sequence converging to
+  the limit `x`.
+-/
+def slowGrowing (s : FundamentalSequenceSystem α) [WellFoundedLT α] (x : α) : ℕ → ℕ :=
+  growingAux s x fun f n ↦ f n + 1
+
 /-- The fast growing hierarchy, given a fundamental sequence system `s`, is defined as follows:
 * `fastGrowing s ⊥ n = n + 1`
 * `fastGrowing s (succ x) n = (fastGrowing s x)^[n] n`
 * `fastGrowing s x n = fastGrowing s (f n) n`, where `f` is the fundamental sequence converging to
   the limit `x`.
 -/
-def fastGrowing (s : FundamentalSequenceSystem α) [WellFoundedLT α] (x : α) (n : ℕ) : ℕ :=
-  match s x with
-  | ⟨Sum.inl none, _, _⟩ => n + 1
-  | ⟨Sum.inl (some y), _, h⟩ => have := h.lt; (fastGrowing s y)^[n] n
-  | ⟨Sum.inr f, hs, hl⟩ => have := lt_of_strictMono_of_isLimit hs hl n; fastGrowing s (f n) n
-termination_by wellFounded_lt.wrap x
+def fastGrowing (s : FundamentalSequenceSystem α) [WellFoundedLT α] (x : α) : ℕ → ℕ :=
+  growingAux s x fun f n ↦ f^[n] n
 
 end Ordinal
