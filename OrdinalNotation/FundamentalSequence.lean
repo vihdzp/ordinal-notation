@@ -24,18 +24,25 @@ instance : EmptyCollection (Sequence α) :=
 instance : Inhabited (Sequence α) :=
   ⟨∅⟩
 
-@[simp] theorem sum_inl_none_def : Sum.inl none = (∅ : Sequence α) := rfl
-
 /-- The sequence consisting only of `x`, whose limit is the succesor of `x`. -/
 instance : Singleton α (Sequence α) :=
   ⟨fun x ↦ Sum.inl (some x)⟩
-
-@[simp] theorem sum_inl_some_def (x : α) : Sum.inl (some x) = ({x} : Sequence α) := rfl
 
 /-- A sequence `ℕ → α`, whose limit is its supremum. -/
 def ofFun (f : ℕ → α) : Sequence α :=
   Sum.inr f
 
+@[simp]
+theorem singleton_ne_empty (x : α) : ({x} : Sequence α) ≠ ∅ := by
+  change Sum.inl _ ≠ Sum.inl _
+  simp
+
+@[simp]
+theorem ofFun_ne_empty (f : ℕ → α) : ofFun f ≠ ∅ :=
+  Sum.inr_ne_inl
+
+@[simp] theorem sum_inl_none_def : Sum.inl none = (∅ : Sequence α) := rfl
+@[simp] theorem sum_inl_some_def (x : α) : Sum.inl (some x) = ({x} : Sequence α) := rfl
 @[simp] theorem sum_inr_def (f : ℕ → α) : Sum.inr f = ofFun f := rfl
 
 /-- Recursion on sequences, using the preferred forms of the constructors. -/
@@ -53,10 +60,8 @@ def range : Sequence α → Set α
   | Sum.inr f => Set.range f
 
 @[simp] theorem range_empty : range (∅ : Sequence α) = ∅ := rfl
-@[simp] theorem range_singleton (x : α) : range ({x} : Sequence α) = {x} := rfl
+@[simp] theorem range_singleton (x : α) : range {x} = {x} := rfl
 @[simp] theorem range_ofFun (f : ℕ → α) : range (ofFun f) = Set.range f := rfl
-
-theorem mem_range_ofFun {f : ℕ → α} (n : ℕ) : f n ∈ range (ofFun f) := ⟨n, rfl⟩
 
 /-- Membership predicate for sequences -/
 def mem (s : Sequence α) (x : α) : Prop :=
@@ -71,6 +76,7 @@ instance : Membership α (Sequence α) :=
 @[simp] theorem mem_range_iff {s : Sequence α} {x : α} : x ∈ s.range ↔ x ∈ s := Iff.rfl
 
 theorem mem_singleton (x : α) : x ∈ ({x} : Sequence α) := mem_singleton_iff.2 rfl
+theorem mem_ofFun {f : ℕ → α} (n : ℕ) : f n ∈ ofFun f := ⟨n, rfl⟩
 
 /-- Maps a sequence through a function -/
 def map (s : Sequence α) (g : α → β) : Sequence β :=
@@ -84,6 +90,10 @@ def map (s : Sequence α) (g : α → β) : Sequence β :=
 @[simp] theorem map_ofFun (f : ℕ → α) (g : α → β) : map (ofFun f) g = ofFun (g ∘ f) := rfl
 
 @[simp]
+theorem map_eq_empty_iff {s : Sequence α} {g : α → β} : s.map g = ∅ ↔ s = ∅ := by
+  apply s.recOn <;> simp
+
+@[simp]
 theorem mem_map {s : Sequence α} {f : α → β} {b : β} : b ∈ s.map f ↔ ∃ a ∈ s, f a = b :=
   match s with
   | Sum.inl none => by simp
@@ -94,40 +104,46 @@ theorem mem_map {s : Sequence α} {f : α → β} {b : β} : b ∈ s.map f ↔ �
 def attach : (s : Sequence α) → Sequence {a : α // a ∈ s}
   | Sum.inl none => ∅
   | Sum.inl (some x) => {⟨x, rfl⟩}
-  | Sum.inr f => ofFun fun n ↦ ⟨f n, Set.mem_range_self n⟩
+  | Sum.inr f => ofFun fun n ↦ ⟨f n, n, rfl⟩
+
+@[simp] theorem attach_empty : (∅ : Sequence α).attach = ∅ := rfl
+@[simp] theorem attach_singleton (x : α) : ({x} : Sequence α).attach = {⟨x, rfl⟩} := rfl
+@[simp] theorem attach_ofFun (f : ℕ → α) : (ofFun f).attach = ofFun fun n ↦ ⟨f n, n, rfl⟩ := rfl
+
+@[simp]
+theorem attach_eq_empty_iff {s : Sequence α} : s.attach = ∅ ↔ s = ∅ := by
+  apply s.recOn <;> simp
 
 @[simp]
 theorem mem_attach {s : Sequence α} {x : α} : ∀ h : x ∈ s, ⟨x, h⟩ ∈ s.attach := by
-  apply s.recOn
-  · simp
-  · rintro x rfl
-    rfl
-  · rintro f ⟨n, rfl⟩
-    exact ⟨n, rfl⟩
+  apply s.recOn <;> simp
 
 /-- Partial map -/
-def pmap {α β : Type*} (s : Sequence α) (f : ∀ x ∈ s, β) : Sequence β :=
+def pmap (s : Sequence α) (f : ∀ x ∈ s, β) : Sequence β :=
   s.attach.map fun x ↦ f x.1 x.2
 
 @[simp]
-theorem pmap_empty {α β : Type*} (f : ∀ x ∈ (∅ : Sequence α), β) : pmap ∅ f = ∅ :=
+theorem pmap_empty (f : ∀ x ∈ (∅ : Sequence α), β) : pmap ∅ f = ∅ :=
   rfl
 
 /-- `pmap_empty` but avoids type rewrites -/
-theorem pmap_eq_empty_of_empty {α β : Type*} {s : Sequence α} (hs : s = ∅)
+theorem pmap_eq_empty_of_empty {s : Sequence α} (hs : s = ∅)
     (f : ∀ x ∈ s, β) : Sequence.pmap s f = ∅ := by
   subst hs
   rfl
 
 @[simp]
-theorem pmap_singleton {α β : Type*} (y : α) (f : ∀ x ∈ ({y} : Sequence α), β) :
-    pmap _ f = {f y rfl} :=
+theorem pmap_singleton (y : α) (f : ∀ x ∈ ({y} : Sequence α), β) : pmap _ f = {f y rfl} :=
   rfl
 
 @[simp]
-theorem pmap_ofFun {α β : Type*} (g : ℕ → α) (f : ∀ x ∈ ofFun g, β) :
+theorem pmap_ofFun (g : ℕ → α) (f : ∀ x ∈ ofFun g, β) :
     pmap _ f = ofFun fun n ↦ f (g n) (Set.mem_range_self _) :=
   rfl
+
+@[simp]
+theorem pmap_eq_empty_iff {s : Sequence α} : {f : ∀ x ∈ s, β} → pmap _ f = ∅ ↔ s = ∅ := by
+  apply s.recOn <;> simp
 
 @[simp]
 theorem mem_pmap {s : Sequence α} {f : ∀ x ∈ s, β} :
@@ -169,18 +185,20 @@ theorem StrictMono.attach {s : Sequence α} (hs : s.StrictMono) : s.attach.Stric
   | Sum.inl (some _) => rfl
   | Sum.inr _ => fun _ _ h ↦ hs h
 
+end Preorder
+
+/-! ### Fundamental sequences -/
+
+section LinearOrder
+
+variable [LinearOrder α] [LinearOrder β]
+
 /-- The limit of a sequence is the least value strictly greater than all its elements.
 
 A length 0 sequence converges at a minimal element. A length 1 sequence `x` converges at the
 successor of `x`. -/
 def IsLimit (s : Sequence α) (y : α) : Prop :=
   ∀ {x}, x < y ↔ ∃ z ∈ s, x ≤ z
-
-end Preorder
-
-section LinearOrder
-
-variable [LinearOrder α] [LinearOrder β]
 
 @[simp]
 theorem isLimit_empty {x : α} : IsLimit ∅ x ↔ IsBot x := by
@@ -206,6 +224,29 @@ theorem isLimit_succ [SuccOrder α] [NoMaxOrder α] (x : α) : IsLimit {x} (succ
 theorem isLimit_ofFun {f : ℕ → α} : IsLimit (ofFun f) y ↔ ∀ {x}, x < y ↔ ∃ n, x ≤ f n := by
   simp [IsLimit]
 
+theorem IsLimit.lt {s : Sequence α} {x y : α} : IsLimit s y → x ∈ s → x < y := by
+  apply s.recOn
+  · rintro _ ⟨⟩
+  · rintro x h rfl
+    exact (IsLimit.covBy h).lt
+  · rintro x h ⟨n, rfl⟩
+    exact (isLimit_ofFun.1 h).2 ⟨n, le_rfl⟩
+
+/-- The only sequence converging to `⊥` is `∅` -/
+theorem IsLimit.eq_empty [OrderBot α] {s : Sequence α} : IsLimit s ⊥ → s = ∅ := by
+  apply s.recOn
+  · simp
+  · intro x h
+    cases (h.lt (mem_singleton _)).ne_bot rfl
+  · intro x h
+    cases (h.lt (mem_ofFun 0)).ne_bot rfl
+
+@[simp]
+theorem IsLimit.bot_iff_eq_empty [OrderBot α] {s : Sequence α} : IsLimit s ⊥ ↔ s = ∅ := by
+  use IsLimit.eq_empty
+  rintro rfl
+  exact isLimit_bot
+
 /-- A fundamental sequence for `x` is a strictly monotonic sequence with limit `x`. -/
 structure IsFundamental (s : Sequence α) (x : α) : Prop where
   /-- A fundamental sequence is strictly monotonic -/
@@ -216,7 +257,7 @@ structure IsFundamental (s : Sequence α) (x : α) : Prop where
 theorem isFundamental_of_isBot {x : α} (h : IsBot x) : IsFundamental ∅ x :=
   ⟨rfl, isLimit_of_isBot h⟩
 
-theorem isFundamental_empty [OrderBot α] : IsFundamental ∅ (⊥ : α) :=
+theorem isFundamental_bot [OrderBot α] : IsFundamental ∅ (⊥ : α) :=
   isFundamental_of_isBot isBot_bot
 
 theorem isFundamental_singleton {x y : α} (h : x ⋖ y) : IsFundamental {x} y :=
@@ -229,29 +270,28 @@ theorem isFundamental_succ_of_not_isMax [SuccOrder α] {x : α} (h : ¬ IsMax x)
 theorem isFundamental_succ [SuccOrder α] [NoMaxOrder α] (x : α) : IsFundamental {x} (succ x) :=
   isFundamental_succ_of_not_isMax (not_isMax x)
 
-theorem IsFundamental.lt {s : Sequence α} {x y : α} : x ∈ s → IsFundamental s y → x < y := by
-  apply s.recOn
-  · rintro ⟨⟩
-  · rintro x rfl h
-    exact (IsLimit.covBy h.isLimit).lt
-  · rintro x ⟨n, rfl⟩ h
-    exact (isLimit_ofFun.1 h.isLimit).2 ⟨n, le_rfl⟩
+theorem IsFundamental.lt {s : Sequence α} {x y : α} (hx : x ∈ s) (h : IsFundamental s y) : x < y :=
+  IsLimit.lt h.isLimit hx
 
 /-- The only fundamental sequence for `⊥` is `∅` -/
-theorem IsFundamental.eq_empty [OrderBot α] {s : Sequence α} : IsFundamental s ⊥ → s = ∅ := by
-  apply s.recOn
-  · simp
-  · intro x h
-    cases (h.lt (mem_singleton _)).ne_bot rfl
-  · intro x h
-    cases (h.lt (mem_range_ofFun 0)).ne_bot rfl
+theorem IsFundamental.eq_empty [OrderBot α] {s : Sequence α} : IsFundamental s ⊥ → s = ∅ :=
+  fun h ↦ IsLimit.eq_empty h.isLimit
 
 @[simp]
 theorem IsFundamental.bot_iff_eq_empty [OrderBot α] {s : Sequence α} :
     IsFundamental s ⊥ ↔ s = ∅ := by
   use IsFundamental.eq_empty
   rintro rfl
-  exact isFundamental_empty
+  exact isFundamental_bot
+
+theorem IsFundamental.isSuccLimit {f : ℕ → α} {x : α} (h : IsFundamental (ofFun f) x) :
+    IsSuccLimit x := by
+  use not_isMin_of_lt (h.lt (mem_ofFun 0))
+  intro y hx
+  obtain ⟨z, ⟨n, rfl⟩, hy⟩ := h.2.1 hx.lt
+  exact (hx.ge_of_gt <| hy.trans_lt (h.1 (Nat.lt_succ_self _))).not_lt (h.lt (mem_ofFun _))
+
+  #exit
 
 end LinearOrder
 

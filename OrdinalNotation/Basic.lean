@@ -303,11 +303,6 @@ theorem oadd_lt_oadd : oadd e₁ n₁ a₁ < oadd e₂ n₂ a₂ ↔
   rw [← cmp_eq_lt_iff, oadd_cmp_oadd]
   simp [then_eq_lt]
 
-theorem oadd_le_oadd : oadd e₁ n₁ a₁ ≤ oadd e₂ n₂ a₂ ↔
-    e₁ < e₂ ∨ e₁ = e₂ ∧ (n₁ < n₂ ∨ n₁ = n₂ ∧ a₁ ≤ a₂) := by
-  simp_rw [le_iff_lt_or_eq, oadd_lt_oadd, oadd_inj]
-  tauto
-
 theorem oadd_lt_oadd_fst (h : e₁ < e₂) : oadd e₁ n₁ a₁ < oadd e₂ n₂ a₂ := by
   rw [oadd_lt_oadd]
   exact Or.inl h
@@ -318,6 +313,15 @@ theorem oadd_lt_oadd_snd (h : n₁ < n₂) : oadd e n₁ a₁ < oadd e n₂ a₂
 
 theorem oadd_lt_oadd_thd (h : a₁ < a₂) : oadd e n a₁ < oadd e n a₂ := by
   rw [oadd_lt_oadd]
+  exact Or.inr ⟨rfl, Or.inr ⟨rfl, h⟩⟩
+
+theorem oadd_le_oadd : oadd e₁ n₁ a₁ ≤ oadd e₂ n₂ a₂ ↔
+    e₁ < e₂ ∨ e₁ = e₂ ∧ (n₁ < n₂ ∨ n₁ = n₂ ∧ a₁ ≤ a₂) := by
+  simp_rw [le_iff_lt_or_eq, oadd_lt_oadd, oadd_inj]
+  tauto
+
+theorem oadd_le_oadd_thd (h : a₁ ≤ a₂) : oadd e n a₁ ≤ oadd e n a₂ := by
+  rw [oadd_le_oadd]
   exact Or.inr ⟨rfl, Or.inr ⟨rfl, h⟩⟩
 
 @[simp]
@@ -1021,49 +1025,52 @@ open Sequence
 
 namespace PreCantor
 
-/-- The Wainer hierarchy as a sequence in `PreCantor`. See also `Cantor.wainer`. -/
+/-- The Wainer hierarchy as a sequence in `PreCantor`. -/
 def wainerSeq : PreCantor → Sequence PreCantor
   | 0 => ∅
-  | .oadd e n a =>
+  | oadd e n a =>
     match a with
-    | .oadd _ _ _ => (wainerSeq a).map (.oadd e n ·)
+    | oadd _ _ _ => (wainerSeq a).map (.oadd e n ·)
     | 0 =>
       let s₁ := wainerSeq e
       let s₂ : Sequence PreCantor := match s₁ with
         | Sum.inl none => {0}
-        | Sum.inl (some x) => ofFun fun k ↦ .oadd x k.succPNat 0
-        | Sum.inr f => ofFun fun k ↦ .oadd (f k) 1 0
+        | Sum.inl (some x) => ofFun fun k ↦ oadd x k.succPNat 0
+        | Sum.inr f => ofFun fun k ↦ oadd (f k) 1 0
       match n with
       | 1 => s₂
-      | ⟨n + 2, _⟩ => s₂.map (.oadd e n.succPNat ·)
+      | ⟨n + 2, _⟩ => s₂.map (oadd e n.succPNat ·)
 
-@[simp]
-theorem wainerSeq_zero : wainerSeq 0 = ∅ :=
-  rfl
+@[simp] theorem wainerSeq_zero : wainerSeq 0 = ∅ := rfl
+@[simp] theorem wainerSeq_one : wainerSeq 1 = {0} := rfl
 
-@[simp]
-theorem wainerSeq_one : wainerSeq 1 = {0} :=
-  rfl
-
-theorem wainerSeq_oadd_oadd : wainerSeq (.oadd e₁ n₁ (.oadd e₂ n₂ a)) =
-    (wainerSeq (.oadd e₂ n₂ a)).map (.oadd e₁ n₁ ·) :=
+theorem wainerSeq_oadd_oadd : wainerSeq (oadd e₁ n₁ (oadd e₂ n₂ a)) =
+    (wainerSeq (oadd e₂ n₂ a)).map (oadd e₁ n₁ ·) :=
   rfl
 
 theorem wainerSeq_oadd_zero {n : ℕ} (hn : 0 < n + 2) :
-    wainerSeq (.oadd e ⟨_, hn⟩ 0) = (wainerSeq (.oadd e 1 0)).map (.oadd e n.succPNat ·) :=
+    wainerSeq (oadd e ⟨_, hn⟩ 0) = (wainerSeq (oadd e 1 0)).map (oadd e n.succPNat ·) :=
   rfl
 
 @[simp]
-theorem wainerSeq_eq_empty (x : PreCantor) : wainerSeq x = ∅ ↔ x = 0 := sorry
+theorem wainerSeq_eq_empty : ∀ {x}, wainerSeq x = ∅ ↔ x = 0
+  | 0 => by simp
+  | oadd e₁ n₁ (oadd e₂ n₂ a) => by
+    rw [wainerSeq]
+    simpa using wainerSeq_eq_empty.ne.2 oadd_ne_zero
+  | oadd e₁ n₁ 0 => by
+    rw [wainerSeq.eq_def]
+    dsimp
+    split <;> split <;> simp
 
-theorem lt_of_mem_wainerSeq {x y : PreCantor} (hx : x ∈ wainerSeq y) : x < y :=
+theorem lt_of_mem_wainerSeq {x y : PreCantor} (hx : x ∈ wainerSeq y) : x < y := by
   match y with
-  | 0 => by contradiction
-  | .oadd e n x@(.oadd _ _ _) => by
+  | 0 => contradiction
+  | .oadd e n (.oadd _ _ _) =>
     rw [wainerSeq_oadd_oadd, mem_map] at hx
     obtain ⟨a, ha, rfl⟩ := hx
     exact oadd_lt_oadd_thd (lt_of_mem_wainerSeq ha)
-  | .oadd e 1 0 => by
+  | .oadd e 1 0 =>
     rw [wainerSeq.eq_def] at hx
     dsimp at hx
     split at hx
@@ -1076,19 +1083,19 @@ theorem lt_of_mem_wainerSeq {x y : PreCantor} (hx : x ∈ wainerSeq y) : x < y :
       rw [h]
     · rfl
     · exact Set.mem_range_self k
-  | .oadd e ⟨n + 2, _⟩ 0 => by
+  | .oadd e ⟨n + 2, _⟩ 0 =>
     rw [wainerSeq_oadd_zero, mem_map] at hx
     obtain ⟨a, _, rfl⟩ := hx
     exact oadd_lt_oadd_snd (Nat.lt_succ_self _)
 
-theorem NF.wainerSeq (hx : x.NF) {y} (hy : y ∈ wainerSeq x) : y.NF :=
+theorem NF.wainerSeq (hx : x.NF) {y} (hy : y ∈ wainerSeq x) : y.NF := by
   match x with
-  | 0 => by rw [wainerSeq_zero] at hy; contradiction
-  | .oadd e n x@(.oadd _ _ _) => by
+  | 0 => rw [wainerSeq_zero] at hy; contradiction
+  | .oadd e n (oadd _ _ _) =>
     rw [wainerSeq_oadd_oadd, mem_map] at hy
     obtain ⟨a, ha, rfl⟩ := hy
     exact hx.fst.oadd _ (NF.wainerSeq hx.snd ha) ((lt_of_mem_wainerSeq ha).trans hx.lt_oadd)
-  | .oadd e n 0 => by
+  | .oadd e n 0 =>
     have : ∀ {y}, y ∈ PreCantor.wainerSeq (.oadd e 1 0) → y.NF := by
       intro y hy
       rw [wainerSeq.eq_def] at hy
@@ -1112,7 +1119,7 @@ theorem NF.wainerSeq (hx : x.NF) {y} (hy : y ∈ wainerSeq x) : y.NF :=
 
 theorem wainerSeq_strictMono : ∀ x : PreCantor, (wainerSeq x).StrictMono
   | 0 => rfl
-  | .oadd e n x@(.oadd _ _ _) => (wainerSeq_strictMono _).map fun x y ↦ oadd_lt_oadd_thd
+  | .oadd e n (oadd _ _ _) => (wainerSeq_strictMono _).map fun x y ↦ oadd_lt_oadd_thd
   | .oadd e n 0 => by
     have : (wainerSeq (.oadd e 1 0)).StrictMono := by
       rw [wainerSeq.eq_def]
@@ -1128,10 +1135,32 @@ theorem wainerSeq_strictMono : ∀ x : PreCantor, (wainerSeq x).StrictMono
       rw [wainerSeq_oadd_zero]
       exact this.map fun x y ↦ oadd_lt_oadd_thd
 
-theorem isLimit_wainerSeq : ∀ {x : PreCantor}, NF x →
-    ∀ {y}, NF y → (y < x ↔ ∃ z ∈ wainerSeq x, y ≤ z)
-  | 0 => sorry
-  | _ => sorry
+private theorem lt_oadd_oadd (hx : NF x) (h : NF (oadd e₁ n₁ (oadd e₂ n₂ a))) :
+    x < oadd e₁ n₁ (oadd e₂ n₂ a) ↔ ∃ y, NF y ∧ y < oadd e₂ n₂ a ∧ x ≤ oadd e₁ n₁ y :=
+  sorry
+
+theorem isLimit_wainerSeq (hx : NF x) (hy : NF y) : y < x ↔ ∃ z ∈ wainerSeq x, y ≤ z := by
+  match x with
+  | 0 => simp
+  | .oadd e n (oadd _ _ _) =>
+    simp_rw [wainerSeq_oadd_oadd, lt_oadd_oadd hy hx, mem_map, exists_exists_and_eq_and]
+    constructor
+    · rintro ⟨z, hz, hzw, hyz⟩
+      rw [isLimit_wainerSeq hx.snd hz] at hzw
+      obtain ⟨w, hw, hzw⟩ := hzw
+      exact ⟨w, hw, hyz.trans (oadd_le_oadd_thd hzw)⟩
+    · rintro ⟨x, hxw, hyx⟩
+      exact ⟨x, hx.snd.wainerSeq hxw, lt_of_mem_wainerSeq hxw, hyx⟩
+  | .oadd e 1 0 =>
+    rw [wainerSeq.eq_def]
+    dsimp
+    split
+    · rename_i h
+      obtain rfl := wainerSeq_eq_empty.1 h
+      simp
+    · sorry
+    · sorry
+  | .oadd e n 0 => sorry
 
 end PreCantor
 
@@ -1146,28 +1175,28 @@ def wainerSeq : Cantor → Sequence Cantor :=
 @[simp] theorem wainerSeq_zero : wainerSeq 0 = ∅ := rfl
 @[simp] theorem wainerSeq_one : wainerSeq 1 = {0} := rfl
 
-theorem lt_of_mem_wainerSeq {x y : Cantor} (hx : x ∈ wainerSeq y) : x < y := by
-  apply PreCantor.lt_of_mem_wainerSeq
-  rw [wainerSeq, mem_pmap] at hx
-  obtain ⟨a, ha, rfl⟩ := hx
-  exact ha
-
-theorem wainerSeq_strictMono (x : Cantor) : (wainerSeq x).StrictMono :=
-  (PreCantor.wainerSeq_strictMono _).attach.map fun _ _ h ↦ h
-
 theorem mem_wainerSeq {x y : Cantor} : x ∈ wainerSeq y ↔ x.1 ∈ y.1.wainerSeq := by
   rw [wainerSeq, mem_pmap]
   refine ⟨?_, fun h ↦ ⟨x.1, h, rfl⟩⟩
   rintro ⟨a, h, rfl⟩
   exact h
 
+theorem lt_of_mem_wainerSeq {x y : Cantor} (hx : x ∈ wainerSeq y) : x < y :=
+  PreCantor.lt_of_mem_wainerSeq (mem_wainerSeq.1 hx)
+
+theorem wainerSeq_strictMono (x : Cantor) : (wainerSeq x).StrictMono :=
+  (PreCantor.wainerSeq_strictMono _).attach.map fun _ _ h ↦ h
+
 theorem isLimit_wainerSeq (x : Cantor) : IsLimit (wainerSeq x) x := by
   intro y
-  apply (PreCantor.isLimit_wainerSeq x.2 y.2).trans
+  apply (PreCantor.isLimit_wainerSeq x.2).trans
   simp_rw [mem_wainerSeq]
   constructor <;> rintro ⟨z, hz, hy⟩
   · exact ⟨⟨z, x.2.wainerSeq hz⟩, hz, hy⟩
   · exact ⟨z.1, hz, hy⟩
+
+theorem isFundamental_wainerSeq (x : Cantor) : IsFundamental (wainerSeq x) x :=
+  ⟨wainerSeq_strictMono x, isLimit_wainerSeq x⟩
 
 #exit
 
@@ -1179,7 +1208,7 @@ follows:
 * `(ω ^ e)[n] = ω ^ e[n]` for limit `e`
 -/
 def wainer : FundamentalSystem Cantor :=
-  fun x ↦ ⟨_, wainerSeq_strictMono x, isLimit_wainerSeq x⟩
+  fun x ↦ ⟨_, isFundamental_wainerSeq x⟩
 
 @[simp] theorem wainer_val (x : Cantor) : (wainer x).1 = wainerSeq x := rfl
 
