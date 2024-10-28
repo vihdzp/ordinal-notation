@@ -851,6 +851,10 @@ theorem ext {x y : Cantor} (h : x.1 = y.1) : x = y :=
 def mk (o : PreCantor) (h : o.NF := by decide) : Cantor :=
   ⟨o, h⟩
 
+/-- The `oadd` pseudo-constructor for `Cantor` -/
+def oadd (e : Cantor) (n : ℕ+) (a : Cantor) (h : a.1 < oadd e.1 1 0 := by decide) : Cantor :=
+  ⟨_, NF.oadd e.2 n a.2 h⟩
+
 instance : Zero Cantor :=
   ⟨⟨0, NF.zero⟩⟩
 
@@ -859,6 +863,10 @@ instance : Inhabited Cantor :=
 
 instance : One Cantor :=
   ⟨⟨1, NF_one⟩⟩
+
+/-- The ordinal `ω` is represented as `oadd 1 1 0 = ω ^ 1 * 1 + 0`. -/
+def omega : Cantor :=
+  oadd 1 1 0
 
 instance : NatCast Cantor where
   natCast n := ⟨n, NF_natCast n⟩
@@ -900,15 +908,13 @@ instance : WellFoundedLT Cantor :=
 instance : WellFoundedRelation Cantor :=
   ⟨(· < ·), lt_wf⟩
 
+-- TODO: this can be deleted soon
 instance : IsWellOrder Cantor (· < ·) where
 
-/-- The `oadd` pseudo-constructor for `Cantor` -/
-def oadd (e : Cantor) (n : ℕ+) (a : Cantor) (h : a.1 < oadd e.1 1 0 := by decide) : Cantor :=
-  ⟨_, NF.oadd e.2 n a.2 h⟩
-
-/-- The ordinal `ω` is represented as `oadd 1 1 0 = ω ^ 1 * 1 + 0`. -/
-def omega : Cantor :=
-  oadd 1 1 0
+/-- Cantor normal forms form a conditionally complete order, but note that this is non-constructive
+as there's no way to decide in finite time the supremum/infimum of an infinite set. -/
+noncomputable instance : ConditionallyCompleteLinearOrderBot Cantor :=
+  WellFoundedLT.conditionallyCompleteLinearOrderBot _
 
 /-- This is a recursor-like theorem for `Cantor` suggesting an inductive definition, which can't
 actually be defined this way due to conflicting dependencies. -/
