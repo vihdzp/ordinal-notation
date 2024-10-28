@@ -1,4 +1,5 @@
 import Mathlib.SetTheory.Ordinal.Arithmetic
+import OrdinalNotation.ForMathlib
 
 universe u
 
@@ -53,9 +54,11 @@ def mem (s : Sequence α) (x : α) : Prop :=
 instance : Membership α (Sequence α) :=
   ⟨mem⟩
 
-@[simp] theorem not_mem_empty (x : γ) : x ∉ (∅ : Sequence γ) := id
-@[simp] theorem mem_singleton_iff {x y : γ} : x ∈ ({y} : Sequence γ) ↔ x = y := Iff.rfl
-@[simp] theorem mem_ofFun_iff {x : γ} {f : ℕ → γ} : x ∈ ofFun f ↔ x ∈ Set.range f := Iff.rfl
+@[simp] theorem not_mem_empty (x : α) : x ∉ (∅ : Sequence α) := id
+@[simp] theorem mem_singleton_iff {x y : α} : x ∈ ({y} : Sequence α) ↔ x = y := Iff.rfl
+@[simp] theorem mem_ofFun_iff {x : α} {f : ℕ → α} : x ∈ ofFun f ↔ x ∈ Set.range f := Iff.rfl
+
+theorem mem_singleton (x : α) : x ∈ ({x} : Sequence α) := mem_singleton_iff.2 rfl
 
 /-- Maps a sequence through a function -/
 def map (s : Sequence α) (g : α → β) : Sequence β :=
@@ -84,6 +87,8 @@ def range : Sequence α → Set α
 @[simp] theorem range_empty : range (∅ : Sequence α) = ∅ := rfl
 @[simp] theorem range_singleton (x : α) : range ({x} : Sequence α) = {x} := rfl
 @[simp] theorem range_ofFun (f : ℕ → α) : range (ofFun f) = Set.range f := rfl
+
+theorem mem_range_setOf {f : ℕ → α} (n : ℕ) : f n ∈ range (ofFun f) := ⟨n, rfl⟩
 
 /-- Attach to a sequence the proof that it contains all its elements -/
 def attach : (s : Sequence α) → Sequence {a : α // a ∈ s}
@@ -123,6 +128,8 @@ def toList (s : Sequence α) (n : ℕ) : List α :=
   | Sum.inl (some x) => [x]
   | Sum.inr f => (List.range n).map f
 
+section Preorder
+
 variable [Preorder α] [Preorder β]
 
 /-- A sequence of length `0` or `1` is always strictly monotonic. For a sequence of length `ω`,
@@ -148,131 +155,108 @@ theorem StrictMono.attach {s : Sequence α} (hs : s.StrictMono) : s.attach.Stric
   | Sum.inl (some _) => rfl
   | Sum.inr _ => fun _ _ h ↦ hs h
 
-/-- The limit of a sequence is the value to which it converges.
+/-- The limit of a sequence is the least value strictly greater than all its elements.
 
-For length 0 sequences, we say that the bottom element is their limit. For length 1 sequences `x`,
-we say that their limit is the successor of `x`. -/
-def IsLimit : Sequence α → α → Prop
-  | Sum.inl none, x => IsMin x
-  | Sum.inl (some x), y => x ⋖ y
-  | Sum.inr f, y => ∀ {x}, x < y ↔ ∃ n, x < f n
+A length 0 sequence converges at a minimal element. A length 1 sequence `x` converges at the
+successor of `x`. -/
+def IsLimit (s : Sequence α) (y : α) : Prop :=
+  ∀ {x}, x < y ↔ ∃ z ∈ range s, x ≤ z
 
-@[simp] theorem isLimit_empty {x : α} : IsLimit ∅ x ↔ IsMin x := Iff.rfl
-@[simp] theorem isLimit_ofElement {x y : α} : IsLimit {x} y ↔ x ⋖ y := Iff.rfl
-theorem isLimit_ofFun {f : ℕ → α} : IsLimit (ofFun f) y ↔ ∀ x, x < y ↔ (∃ n, x < f n) := Iff.rfl
+end Preorder
 
-theorem lt_of_strictMono_of_isLimit {f : ℕ → α} (hs : (ofFun f).StrictMono)
-    {x : α} (hl : IsLimit (ofFun f) x) (n : ℕ) : f n < x :=
-  hl.2 ⟨_, hs (n.lt_succ_self)⟩
+section LinearOrder
+
+variable [LinearOrder α] [LinearOrder β]
+
+@[simp]
+theorem isLimit_empty {x : α} : IsLimit ∅ x ↔ IsBot x := by
+  simp [IsLimit, isBot_iff_isMin, isMin_iff_forall_not_lt]
+
+alias ⟨IsLimit.isBot, isLimit_of_isBot⟩ := isLimit_empty
+
+theorem isLimit_bot [OrderBot α] : IsLimit ∅ (⊥ : α) :=
+  isLimit_of_isBot isBot_bot
+
+@[simp]
+theorem isLimit_singleton {x y : α} : IsLimit {x} y ↔ x ⋖ y := by
+  simp [IsLimit, covBy_iff_lt_iff_le]
+
+alias ⟨IsLimit.covBy, isLimit_of_covBy⟩ := isLimit_singleton
+
+theorem isLimit_succ_of_not_isMax [SuccOrder α] {x : α} (h : ¬ IsMax x) : IsLimit {x} (succ x) :=
+  isLimit_of_covBy (covBy_succ_of_not_isMax h)
+
+theorem isLimit_succ [SuccOrder α] [NoMaxOrder α] (x : α) : IsLimit {x} (succ x) :=
+  isLimit_succ_of_not_isMax (not_isMax x)
+
+theorem isLimit_ofFun {f : ℕ → α} : IsLimit (ofFun f) y ↔ ∀ {x}, x < y ↔ ∃ n, x ≤ f n := by
+  simp [IsLimit]
+
+/-- A fundamental sequence for `x` is a strictly monotonic sequence with limit `x`. -/
+structure IsFundamental (s : Sequence α) (x : α) : Prop where
+  /-- A fundamental sequence is strictly monotonic -/
+  strictMono : s.StrictMono
+  /-- A fundamental sequence for `x` has limit `x` -/
+  exists_lt_of_lt : ∀ y < x, ∃ z ∈ s.range, y < z
+
+theorem IsFundamental.isLimit {s : Sequence α} {x : α} (h : IsFunadmental s x) : IsLimit s
+
+#exit
+theorem isFundamental_of_isBot {x : α} (h : IsBot x) : IsFundamental ∅ x :=
+  ⟨rfl, isLimit_of_isBot h⟩
+
+theorem isFundamental_empty [OrderBot α] : IsFundamental ∅ (⊥ : α) :=
+  isFundamental_of_isBot isBot_bot
+
+theorem isFundamental_singleton {x y : α} (h : x ⋖ y) : IsFundamental {x} y :=
+  ⟨rfl, isLimit_of_covBy h⟩
+
+theorem isFundamental_succ_of_not_isMax [SuccOrder α] {x : α} (h : ¬ IsMax x) :
+    IsFundamental {x} (succ x) :=
+  isFundamental_singleton (covBy_succ_of_not_isMax h)
+
+theorem isFundamental_succ [SuccOrder α] [NoMaxOrder α] (x : α) : IsFundamental {x} (succ x) :=
+  isFundamental_succ_of_not_isMax (not_isMax x)
+
+theorem IsFundamental.lt {s : Sequence α} {x y : α} (hx : x ∈ s) (h : IsFundamental s y) : x < y :=
+  match s with
+  | Sum.inl none => by contradiction
+  | Sum.inl (some z) => by
+    obtain rfl := hx
+    exact (IsLimit.covBy h.isLimit).lt
+  | Sum.inr f => by
+    obtain ⟨n, rfl⟩ := hx
+    exact (isLimit_ofFun.1 h.isLimit).2 ⟨n, le_rfl⟩
+
+theorem IsFundamental.lt_apply {f : ℕ → α} {x : α} (h : IsFundamental (ofFun f) x) (n : ℕ) :
+    f n < x :=
+  h.lt (Set.mem_range_self n)
+
+end LinearOrder
 
 end Sequence
 
 open Sequence
 
-variable [Preorder α]
+variable [LinearOrder α]
 
-/-- A fundamental sequence is a `Sequence` (with length 0, 1, or `ω`) which is strictly monotonic
-and converges to `top`. -/
-structure FundamentalSeq (top : α) : Type u where
-  /-- The underlying `Sequence` -/
-  sequence : Sequence α
-  /-- A fundamental sequence is strictly monotonic -/
-  strictMono : sequence.StrictMono
-  /-- The fundamental sequence converges at `top` -/
-  isLimit : sequence.IsLimit top
-
-namespace FundamentalSeq
-
-@[ext]
-theorem ext (top : α) {f g : FundamentalSeq top} (h : f.sequence = g.sequence) : f = g := by
-  cases f; cases g;
-  simpa
-
-/-- Recursion on the possible sequences the fundamental sequence is made out of. -/
-@[elab_as_elim]
-def recOnSequence {top : α} {p : FundamentalSeq top → Sort*} (s : FundamentalSeq top)
-    (empty : ∀ hl : IsMin top, p ⟨∅, rfl, hl⟩) (singleton : ∀ x (hl : x ⋖ top), p ⟨{x}, rfl, hl⟩)
-    (ofNat : ∀ f (hs : StrictMono f) hl, p ⟨ofFun f, hs, hl⟩) : p s := by
-  obtain ⟨(_ | _) | _, hs, hl⟩ := s
-  · exact empty hl
-  · exact singleton _ hl
-  · exact ofNat _ hs hl
-
-theorem lt_of_mem {top x : α} (s : FundamentalSeq top) : x ∈ s.sequence → x < top := by
-  refine recOnSequence s ?_ ?_ ?_
-  · simp
-  · intro y hy
-    rw [mem_singleton_iff]
-    rintro rfl
-    exact hy.lt
-  · intro f hs hl hx
-    obtain ⟨n, rfl⟩ := hx
-    exact lt_of_strictMono_of_isLimit hs hl n
-
-/-- Given a minimal element, the empty sequence is a fundamental sequence for it. -/
-@[simps]
-def ofIsMin {x : α} (hx : IsMin x) : FundamentalSeq x :=
-  ⟨∅, strictMono_empty, isLimit_empty.2 hx⟩
-
-/-- The empty sequence is a fundamental sequence for `⊥`. -/
-abbrev bot [OrderBot α] : FundamentalSeq (⊥ : α) :=
-  FundamentalSeq.ofIsMin isMin_bot
-
-/-- The empty sequence is the only fundamental sequence for `⊥` -/
-theorem eq_bot [OrderBot α] (s : FundamentalSeq (⊥ : α)) : s = bot := by
-  ext
-  refine recOnSequence s ?_ (fun x hx ↦ ?_) (fun f hs hl ↦ ?_)
-  · simp
-  · cases hx.lt.ne_bot rfl
-  · cases (lt_of_strictMono_of_isLimit hs hl 0).ne_bot rfl
-
-instance [OrderBot α] : Unique (FundamentalSeq (⊥ : α)) :=
-  ⟨⟨bot⟩, eq_bot⟩
-
-/-- If `y` covers `x`, then `x` is a fundamental sequence for `y`. -/
-@[simps]
-def ofCovby {x y : α} (h : x ⋖ y) : FundamentalSeq y :=
-  ⟨_, strictMono_singleton x, Sequence.isLimit_ofElement.2 h⟩
-
-/-- `x` is a fundamental sequence for `succ x`. -/
-abbrev succ {x : α} (hx : ¬ IsMax x) [SuccOrder α] : FundamentalSeq (succ x) :=
-  ofCovby (covBy_succ_of_not_isMax hx)
-
-/-- In a linear order, if `y` covers `x` then the only fundamental sequence for `y` is `x`. -/
-theorem eq_ofCovby {α} [LinearOrder α] {x y : α} (h : x ⋖ y)
-    (s : FundamentalSeq y) : s = ofCovby h := by
-  ext
-  refine recOnSequence s (fun hl ↦ ?_) (fun z hz ↦ ?_) (fun f hf hl ↦ ?_)
-  · cases hl.not_lt h.lt
-  · obtain rfl := h.unique_left hz
-    simp
-  · obtain ⟨n, hn⟩ := hl.1 h.lt
-    cases (hl.2 ⟨_, (h.ge_of_gt hn).trans_lt (hf n.lt_succ_self)⟩).false
-
-/-- In a linear order, the only fundamental sequence for `succ x` is `x`. -/
-theorem eq_succ {α} [LinearOrder α] [SuccOrder α] {x : α} (hx : ¬ IsMax x)
-    (s : FundamentalSeq (Order.succ x)) : s = succ hx :=
-  eq_ofCovby _ _
-
-end FundamentalSeq
-
-/-- A fundamental sequence system is a set of `FundamentalSeq`, one for each element of the
+/-- A fundamental sequence system is a pi type of fundamental sequences, one for each element of the
 order. -/
-def FundamentalSystem (α : Type u) [Preorder α] : Type u :=
-  ∀ top : α, FundamentalSeq top
+def FundamentalSystem (α : Type u) [LinearOrder α] : Type u :=
+  ∀ top : α, { s : Sequence α // s.IsFundamental top }
 
 example : FundamentalSystem ℕ
-  | 0 => FundamentalSeq.bot
-  | n + 1 => FundamentalSeq.succ (not_isMax n)
+  | 0 => ⟨_, isFundamental_empty⟩
+  | n + 1 => ⟨_, isFundamental_succ n⟩
 
 /-- An auxiliary definition for `slowGrowing` and `fastGrowing`. The function `g` describes what
 happens at the successor step. -/
 private def growingAux (s : FundamentalSystem α) [WellFoundedLT α]
     (x : α) (g : (ℕ → ℕ) → ℕ → ℕ) (n : ℕ) : ℕ :=
   match s x with
-  | ⟨Sum.inl none, _, _⟩ => n + 1
-  | ⟨Sum.inl (some y), _, h⟩ => have := h.lt; g (growingAux s y g) n
-  | ⟨Sum.inr f, hs, hl⟩ => have := lt_of_strictMono_of_isLimit hs hl n; growingAux s (f n) g n
+  | ⟨Sum.inl none, _⟩ => n + 1
+  | ⟨Sum.inl (some y), h⟩ => have := h.lt (mem_singleton y); g (growingAux s y g) n
+  | ⟨Sum.inr f, h⟩ => have := h.lt (mem_range_setOf n); growingAux s (f n) g n
 termination_by wellFounded_lt.wrap x
 
 /-- The slow growing hierarchy, given a fundamental sequence system `s`, is defined as follows:

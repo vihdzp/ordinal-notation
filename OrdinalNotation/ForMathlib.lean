@@ -74,3 +74,7 @@ end Ordinal
 
 theorem PNat.one_lt_of_ne {n : ℕ+} (hn : n ≠ 1) : 1 < n := by
   rwa [ne_eq, ← PNat.le_one_iff, not_le] at hn
+
+theorem Order.covBy_iff_lt_iff_le [LinearOrder α] {x y : α} : x ⋖ y ↔ ∀ {z}, z < y ↔ z ≤ x where
+  mp := fun hx _z ↦ ⟨hx.le_of_lt, fun hz ↦ hz.trans_lt hx.lt⟩
+  mpr := fun H ↦ ⟨H.2 le_rfl, fun _z hx hz ↦ (H.1 hz).not_lt hx⟩

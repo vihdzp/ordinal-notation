@@ -862,6 +862,10 @@ instance : Inhabited Cantor :=
 theorem val_zero : (0 : Cantor).val = 0 :=
   rfl
 
+@[simp]
+theorem mk_zero : ⟨0, NF.zero⟩ = (0 : Cantor) :=
+  rfl
+
 instance : One Cantor :=
   ⟨⟨1, NF_one⟩⟩
 
@@ -1013,7 +1017,7 @@ instance : SuccAddOrder Cantor :=
 
 open Sequence
 
-/-- Auxiliary definition for the Wainer hierarchy -/
+/-- `wainerSeq` as a sequence in `PreCantor` -/
 private def wainerAux : PreCantor → Sequence PreCantor
   | 0 => ∅
   | .oadd e n a =>
@@ -1032,9 +1036,6 @@ private def wainerAux : PreCantor → Sequence PreCantor
 private theorem wainerAux_zero : wainerAux 0 = ∅ :=
   rfl
 
-private theorem wainerAux_one : wainerAux 1 = {0} :=
-  rfl
-
 private theorem wainerAux_oadd_oadd : wainerAux (.oadd e₁ n₁ (.oadd e₂ n₂ a)) =
     (wainerAux (.oadd e₂ n₂ a)).map (.oadd e₁ n₁ ·) :=
   rfl
@@ -1047,7 +1048,7 @@ private theorem lt_of_mem_wainerAux {x y : PreCantor} (hx : x ∈ wainerAux y) :
   match y with
   | 0 => by contradiction
   | .oadd e n x@(.oadd _ _ _) => by
-    rw [wainerAux, mem_map] at hx
+    rw [wainerAux_oadd_oadd, mem_map] at hx
     obtain ⟨a, ha, rfl⟩ := hx
     exact oadd_lt_oadd_thd (lt_of_mem_wainerAux ha)
   | .oadd e 1 0 => by
@@ -1072,7 +1073,7 @@ private theorem NF_wainerAux (hx : x.NF) {y} (hy : y ∈ wainerAux x) : y.NF :=
   match x with
   | 0 => by rw [wainerAux_zero] at hy; contradiction
   | .oadd e n x@(.oadd _ _ _) => by
-    rw [wainerAux, mem_map] at hy
+    rw [wainerAux_oadd_oadd, mem_map] at hy
     obtain ⟨a, ha, rfl⟩ := hy
     exact hx.fst.oadd _ (NF_wainerAux hx.snd ha) ((lt_of_mem_wainerAux ha).trans hx.lt_oadd)
   | .oadd e n 0 => by
@@ -1097,9 +1098,9 @@ private theorem NF_wainerAux (hx : x.NF) {y} (hy : y ∈ wainerAux x) : y.NF :=
       obtain ⟨a, ha, rfl⟩ := hy
       exact hx.fst.oadd _ (this ha) (lt_of_mem_wainerAux ha)
 
-private theorem wainerAux_strictMono : ∀ {x : PreCantor}, (wainerAux x).StrictMono
+private theorem wainerAux_strictMono : ∀ x : PreCantor, (wainerAux x).StrictMono
   | 0 => rfl
-  | .oadd e n x@(.oadd _ _ _) => wainerAux_strictMono.map fun x y ↦ oadd_lt_oadd_thd
+  | .oadd e n x@(.oadd _ _ _) => (wainerAux_strictMono _).map fun x y ↦ oadd_lt_oadd_thd
   | .oadd e n 0 => by
     have : (wainerAux (.oadd e 1 0)).StrictMono := by
       rw [wainerAux.eq_def]
@@ -1108,12 +1109,39 @@ private theorem wainerAux_strictMono : ∀ {x : PreCantor}, (wainerAux x).Strict
       · rfl
       · exact fun x y h ↦ oadd_lt_oadd_snd <| Nat.succPNat_lt_succPNat.2 h
       · rename_i hf
-        exact fun x y h ↦ oadd_lt_oadd_fst <| (hf ▸ wainerAux_strictMono) h
+        exact fun x y h ↦ oadd_lt_oadd_fst <| (hf ▸ wainerAux_strictMono _) h
     match n with
     | 1 => exact this
     | ⟨n + 2, _⟩ =>
       rw [wainerAux_oadd_zero]
       exact this.map fun x y ↦ oadd_lt_oadd_thd
+
+/-- The underlying sequence of the `wainer` hierarchy -/
+def wainerSeq : Cantor → Sequence Cantor :=
+  fun x ↦ (wainerAux _).pmap fun _ hy ↦ ⟨_, NF_wainerAux x.2 hy⟩
+
+@[simp] theorem wainerSeq_zero : wainerSeq 0 = ∅ := rfl
+@[simp] theorem wainerSeq_one : wainerSeq 1 = {0} := rfl
+
+theorem wainerSeq_strictMono (x : Cantor) : (wainerSeq x).StrictMono :=
+  (wainerAux_strictMono _).attach.map fun _ _ h ↦ h
+
+theorem isLimit_wainerSeq (x : Cantor) : IsLimit (wainerSeq x) x :=
+  sorry
+
+/-- The Wainer hierarchy is a fundamental sequence system for Cantor normal forms, defined as
+follows:
+
+* `(ω ^ e₁ + … + ω ^ eₖ)[n] = ω ^ e₁ + … + (ω ^ eₖ)[n]`
+* `(ω ^ (e + 1))[n] = ω ^ e * (n + 1)`
+* `(ω ^ e)[n] = ω ^ e[n]` for limit `e`
+-/
+def wainer : FundamentalSystem Cantor :=
+  fun x ↦ ⟨_, wainerSeq_strictMono x, isLimit_wainerSeq x⟩
+
+@[simp] theorem wainer_val (x : Cantor) : (wainer x).1 = wainerSeq x := rfl
+
+#exit
 
 /-- The Wainer hierarchy is a fundamental sequence system for Cantor normal forms, defined as
 follows:
@@ -1124,8 +1152,14 @@ follows:
 -/
 def wainer : FundamentalSystem Cantor := by
   refine fun x ↦ ⟨(wainerAux x.1).pmap fun y hy ↦ ⟨_, NF_wainerAux x.2 hy⟩, ?_, ?_⟩
-  · exact wainerAux_strictMono.attach.map fun x y h ↦ h
-  · sorry
+  · exact (wainerAux_strictMono _).attach.map fun x y h ↦ h
+  · obtain ⟨x, hx⟩ := x
+    match x with
+    | 0 => simp [wainerAux, ← mk_zero]
+    | .oadd e n x@(.oadd _ _ _) =>
+      simp_rw [wainerAux_oadd_oadd]
+      sorry
+    | .oadd e n 0 => sorry
 
 @[simp]
 theorem wainer_zero : wainer 0 = FundamentalSeq.bot :=
