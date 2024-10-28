@@ -900,6 +900,31 @@ noncomputable def repr : Cantor <i Ordinal where
   top := sorry -- TODO: this is ε₀
   mem_range_iff_rel' := sorry
 
+@[simp]
+theorem repr_zero : repr 0 = 0 :=
+  PreCantor.repr_zero
+
+@[simp]
+theorem repr_one : repr 1 = 1 :=
+  PreCantor.repr_one
+
+@[simp]
+theorem repr_natCast (n : ℕ) : repr n = n :=
+  PreCantor.repr_natCast n
+
+@[simp]
+theorem repr_ofNat (n : ℕ) [n.AtLeastTwo] : repr (no_index (OfNat.ofNat n)) = n :=
+  repr_natCast n
+
+theorem repr_lt_repr_iff {x y : Cantor} : repr x < repr y ↔ x < y :=
+  repr.lt_iff_lt
+
+theorem repr_le_repr_iff {x y : Cantor} : repr x ≤ repr y ↔ x ≤ y :=
+  repr.le_iff_le
+
+theorem repr_inj {x y : Cantor} : repr x = repr y ↔ x = y :=
+  repr.inj
+
 theorem lt_wf : @WellFounded Cantor (· < ·) :=
   repr.wellFounded wellFounded_lt
 
@@ -970,49 +995,125 @@ instance : Pow Cantor Cantor :=
 theorem repr_opow (a b) : repr (a ^ b) = repr a ^ repr b :=
   PreCantor.repr_opow a.2 b.2
 
+instance : NoMaxOrder Cantor where
+  exists_gt x := by
+    use x + 1
+    rw [← repr.lt_iff_lt, repr_add, repr_one]
+    exact lt_succ (repr x)
+
+instance : SuccOrder Cantor := by
+  refine SuccOrder.ofCore (· + 1) ?_ ?_ <;> simp [← repr_le_repr_iff]
+
+instance : SuccAddOrder Cantor :=
+  ⟨fun _ ↦ rfl⟩
+
 -- TODO: decidable instance for `IsLimit`
 
 /-! ### Fundamental sequences -/
 
+open Sequence
+
 /-- Auxiliary definition for the Wainer hierarchy -/
 private def wainerAux : PreCantor → Sequence PreCantor
   | 0 => ∅
-  | .oadd e n x@(.oadd _ _ _) => (wainerAux x).map (.oadd e n ·)
-  | .oadd e n 0 =>
-    let s := wainerAux e
-    match n with
-    | ⟨n + 2, _⟩ => s.map (.oadd e n.succPNat ·)
-    | 1 =>
-      match s with
-      | Sum.inl none => {0}
-      | Sum.inl (some x) => Sequence.ofFun fun k ↦ .oadd x k.succPNat 0
-      | Sum.inr _ => s.map (.oadd · 1 0)
+  | .oadd e n a =>
+    match a with
+    | .oadd _ _ _ => (wainerAux a).map (.oadd e n ·)
+    | 0 =>
+      let s₁ := wainerAux e
+      let s₂ : Sequence PreCantor := match s₁ with
+        | Sum.inl none => {0}
+        | Sum.inl (some x) => ofFun fun k ↦ .oadd x k.succPNat 0
+        | Sum.inr f => ofFun fun k ↦ .oadd (f k) 1 0
+      match n with
+      | 1 => s₂
+      | ⟨n + 2, _⟩ => s₂.map (.oadd e n.succPNat ·)
 
-private theorem wainerAux_zero : wainerAux 0 = ∅ := by
-  rw [wainerAux.eq_def]
+private theorem wainerAux_zero : wainerAux 0 = ∅ :=
+  rfl
+
+private theorem wainerAux_one : wainerAux 1 = {0} :=
+  rfl
+
+private theorem wainerAux_oadd_oadd : wainerAux (.oadd e₁ n₁ (.oadd e₂ n₂ a)) =
+    (wainerAux (.oadd e₂ n₂ a)).map (.oadd e₁ n₁ ·) :=
+  rfl
+
+private theorem wainerAux_oadd_zero {n : ℕ} (hn : 0 < n + 2) :
+    wainerAux (.oadd e ⟨_, hn⟩ 0) = (wainerAux (.oadd e 1 0)).map (.oadd e n.succPNat ·) :=
+  rfl
+
+private theorem lt_of_mem_wainerAux {x y : PreCantor} (hx : x ∈ wainerAux y) : x < y :=
+  match y with
+  | 0 => by contradiction
+  | .oadd e n x@(.oadd _ _ _) => by
+    rw [wainerAux, mem_map] at hx
+    obtain ⟨a, ha, rfl⟩ := hx
+    exact oadd_lt_oadd_thd (lt_of_mem_wainerAux ha)
+  | .oadd e 1 0 => by
+    rw [wainerAux.eq_def] at hx
+    dsimp at hx
+    split at hx
+    · obtain rfl := hx
+      exact oadd_pos _ _ _
+    all_goals
+      rename_i h
+      obtain ⟨k, rfl⟩ := hx
+      apply oadd_lt_oadd_fst (lt_of_mem_wainerAux _)
+      rw [h]
+    · rfl
+    · exact Set.mem_range_self k
+  | .oadd e ⟨n + 2, _⟩ 0 => by
+    rw [wainerAux_oadd_zero, mem_map] at hx
+    obtain ⟨a, _, rfl⟩ := hx
+    exact oadd_lt_oadd_snd (Nat.lt_succ_self _)
 
 private theorem NF_wainerAux (hx : x.NF) {y} (hy : y ∈ wainerAux x) : y.NF :=
   match x with
   | 0 => by rw [wainerAux_zero] at hy; contradiction
   | .oadd e n x@(.oadd _ _ _) => by
-    rw [wainerAux, Sequence.mem_map] at hy
+    rw [wainerAux, mem_map] at hy
     obtain ⟨a, ha, rfl⟩ := hy
-    rw [NF_oadd_iff]
+    exact hx.fst.oadd _ (NF_wainerAux hx.snd ha) ((lt_of_mem_wainerAux ha).trans hx.lt_oadd)
+  | .oadd e n 0 => by
+    have : ∀ {y}, y ∈ wainerAux (.oadd e 1 0) → y.NF := by
+      intro y hy
+      rw [wainerAux.eq_def] at hy
+      dsimp at hy
+      split at hy
+      · obtain rfl := hy
+        exact NF.zero
+      all_goals
+        rename_i h
+        obtain ⟨k, rfl⟩ := hy
+        apply (NF_wainerAux hx.fst _).oadd_zero
+        rw [h]
+      · rfl
+      · exact Set.mem_range_self k
+    match n with
+    | 1 => exact this hy
+    | ⟨n + 2, _⟩ =>
+      rw [wainerAux_oadd_zero, mem_map] at hy
+      obtain ⟨a, ha, rfl⟩ := hy
+      exact hx.fst.oadd _ (this ha) (lt_of_mem_wainerAux ha)
 
-private theorem wainerAux_strictMono {x : PreCantor} : (wainerAux x).StrictMono :=
-  sorry
-
-def _root_.Ordinal.Sequence.pmap {α β : Type*} (s : Sequence α) (f : ∀ x ∈ s, β) : Sequence β :=
-  s.attach.map fun x ↦ f x.1 x.2
-
-theorem pmap_empty {α β : Type*} (f : ∀ x ∈ (∅ : Sequence α), β) : Sequence.pmap ∅ f = ∅ := rfl
-
-
-theorem pmap_eq_empty_of_empty {α β : Type*} {s : Sequence α} (hs : s = ∅)
-    (f : ∀ x ∈ s, β) : Sequence.pmap s f = ∅ := by
-  subst hs
-  rfl
-
+private theorem wainerAux_strictMono : ∀ {x : PreCantor}, (wainerAux x).StrictMono
+  | 0 => rfl
+  | .oadd e n x@(.oadd _ _ _) => wainerAux_strictMono.map fun x y ↦ oadd_lt_oadd_thd
+  | .oadd e n 0 => by
+    have : (wainerAux (.oadd e 1 0)).StrictMono := by
+      rw [wainerAux.eq_def]
+      dsimp
+      split
+      · rfl
+      · exact fun x y h ↦ oadd_lt_oadd_snd <| Nat.succPNat_lt_succPNat.2 h
+      · rename_i hf
+        exact fun x y h ↦ oadd_lt_oadd_fst <| (hf ▸ wainerAux_strictMono) h
+    match n with
+    | 1 => exact this
+    | ⟨n + 2, _⟩ =>
+      rw [wainerAux_oadd_zero]
+      exact this.map fun x y ↦ oadd_lt_oadd_thd
 
 /-- The Wainer hierarchy is a fundamental sequence system for Cantor normal forms, defined as
 follows:
@@ -1021,19 +1122,14 @@ follows:
 * `(ω ^ (e + 1))[n] = ω ^ e * (n + 1)`
 * `(ω ^ e)[n] = ω ^ e[n]` for limit `e`
 -/
-def wainer : FundamentalSequenceSystem Cantor := by
+def wainer : FundamentalSystem Cantor := by
   refine fun x ↦ ⟨(wainerAux x.1).pmap fun y hy ↦ ⟨_, NF_wainerAux x.2 hy⟩, ?_, ?_⟩
   · exact wainerAux_strictMono.attach.map fun x y h ↦ h
   · sorry
 
 @[simp]
-theorem wainer_zero : wainer 0 = FundamentalSequence.bot := by
-  ext
-  dsimp only [wainer]
-  rw [pmap_eq_empty_of_empty]
-  · rfl
-  · exact wainerAux_zero
-
+theorem wainer_zero : wainer 0 = FundamentalSeq.bot :=
+  rfl
 
 end Cantor
 
@@ -1044,14 +1140,14 @@ end Cantor
 * `inl none` for `0`
 * `inl (some a)` for `a + 1`
 * `inr f` for a limit ordinal `a`, where `f i` is a sequence converging to `a` -/
-def fundamentalSequence : PreCantor → (Option PreCantor) ⊕ (ℕ → PreCantor)
+def FundamentalSeq : PreCantor → (Option PreCantor) ⊕ (ℕ → PreCantor)
   | zero => Sum.inl none
   | oadd a m b =>
-    match fundamentalSequence b with
+    match FundamentalSeq b with
     | Sum.inr f => Sum.inr fun i => oadd a m (f i)
     | Sum.inl (some b') => Sum.inl (some (oadd a m b'))
     | Sum.inl none =>
-      match fundamentalSequence a, m.natPred with
+      match FundamentalSeq a, m.natPred with
       | Sum.inl none, 0 => Sum.inl (some zero)
       | Sum.inl none, m + 1 => Sum.inl (some (oadd zero m.succPNat zero))
       | Sum.inl (some a'), 0 => Sum.inr fun i => oadd a' i.succPNat zero
@@ -1080,43 +1176,43 @@ private theorem exists_lt_omega0_opow' {α} {o b : Ordinal} (hb : 1 < b) (ho : o
   obtain ⟨d, hd, h'⟩ := (lt_opow_of_limit (zero_lt_one.trans hb).ne' ho).1 h
   exact (H hd).imp fun i hi => h'.trans <| (opow_lt_opow_iff_right hb).2 hi
 
-/-- The property satisfied by `fundamentalSequence o`:
+/-- The property satisfied by `FundamentalSeq o`:
 
 * `inl none` means `o = 0`
 * `inl (some a)` means `o = succ a`
 * `inr f` means `o` is a limit ordinal and `f` is a strictly increasing sequence which converges to
   `o` -/
-def FundamentalSequenceProp (o : PreCantor) : (Option PreCantor) ⊕ (ℕ → PreCantor) → Prop
+def FundamentalSeqProp (o : PreCantor) : (Option PreCantor) ⊕ (ℕ → PreCantor) → Prop
   | Sum.inl none => o = 0
   | Sum.inl (some a) => o.repr = succ a.repr ∧ (o.NF → a.NF)
   | Sum.inr f =>
     o.repr.IsLimit ∧
       (∀ i, f i < f (i + 1) ∧ f i < o ∧ (o.NF → (f i).NF)) ∧ ∀ a, a < o.repr → ∃ i, a < (f i).repr
 
-theorem fundamentalSequenceProp_inl_none (o) :
-    FundamentalSequenceProp o (Sum.inl none) ↔ o = 0 :=
+theorem FundamentalSeqProp_inl_none (o) :
+    FundamentalSeqProp o (Sum.inl none) ↔ o = 0 :=
   Iff.rfl
 
-theorem fundamentalSequenceProp_inl_some (o a) :
-    FundamentalSequenceProp o (Sum.inl (some a)) ↔ o.repr = succ a.repr ∧ (o.NF → a.NF) :=
+theorem FundamentalSeqProp_inl_some (o a) :
+    FundamentalSeqProp o (Sum.inl (some a)) ↔ o.repr = succ a.repr ∧ (o.NF → a.NF) :=
   Iff.rfl
 
-theorem fundamentalSequenceProp_inr (o f) :
-    FundamentalSequenceProp o (Sum.inr f) ↔
+theorem FundamentalSeqProp_inr (o f) :
+    FundamentalSeqProp o (Sum.inr f) ↔
       o.repr.IsLimit ∧
         (∀ i, f i < f (i + 1) ∧ f i < o ∧ (o.NF → (f i).NF)) ∧
         ∀ a, a < o.repr → ∃ i, a < (f i).repr :=
   Iff.rfl
 
-theorem fundamentalSequence_has_prop (o) : FundamentalSequenceProp o (fundamentalSequence o) := by
+theorem FundamentalSeq_has_prop (o) : FundamentalSeqProp o (FundamentalSeq o) := by
   induction' o with a m b iha ihb; · exact rfl
-  rw [fundamentalSequence]
-  rcases e : b.fundamentalSequence with (⟨_ | b'⟩ | f) <;>
-    simp only [FundamentalSequenceProp] <;>
-    rw [e, FundamentalSequenceProp] at ihb
-  · rcases e : a.fundamentalSequence with (⟨_ | a'⟩ | f) <;> cases' e' : m.natPred with m' <;>
-      simp only [FundamentalSequenceProp] <;>
-      rw [e, FundamentalSequenceProp] at iha <;>
+  rw [FundamentalSeq]
+  rcases e : b.FundamentalSeq with (⟨_ | b'⟩ | f) <;>
+    simp only [FundamentalSeqProp] <;>
+    rw [e, FundamentalSeqProp] at ihb
+  · rcases e : a.FundamentalSeq with (⟨_ | a'⟩ | f) <;> cases' e' : m.natPred with m' <;>
+      simp only [FundamentalSeqProp] <;>
+      rw [e, FundamentalSeqProp] at iha <;>
       (try rw [show m = 1 by
             have := PNat.natPred_add_one m; rw [e'] at this; exact PNat.coe_inj.1 this.symm]) <;>
       (try rw [show m = (m' + 1).succPNat by
@@ -1177,7 +1273,7 @@ indexed by ordinals, with the definition:
   converging to `α` -/
 def fastGrowing : PreCantor → ℕ → ℕ
   | o =>
-    match fundamentalSequence o, fundamentalSequence_has_prop o with
+    match FundamentalSeq o, FundamentalSeq_has_prop o with
     | Sum.inl none, _ => Nat.succ
     | Sum.inl (some a), h =>
       have : a < o := by rw [lt_def, h.1]; apply lt_succ
@@ -1189,11 +1285,11 @@ def fastGrowing : PreCantor → ℕ → ℕ
 
 -- Porting note: the linter bug should be fixed.
 @[nolint unusedHavesSuffices]
-theorem fastGrowing_def {o : PreCantor} {x} (e : fundamentalSequence o = x) :
+theorem fastGrowing_def {o : PreCantor} {x} (e : FundamentalSeq o = x) :
     fastGrowing o =
       match
-        (motive := (x : Option PreCantor ⊕ (ℕ → PreCantor)) → FundamentalSequenceProp o x → ℕ → ℕ)
-        x, e ▸ fundamentalSequence_has_prop o with
+        (motive := (x : Option PreCantor ⊕ (ℕ → PreCantor)) → FundamentalSeqProp o x → ℕ → ℕ)
+        x, e ▸ FundamentalSeq_has_prop o with
       | Sum.inl none, _ => Nat.succ
       | Sum.inl (some a), _ =>
         fun i => (fastGrowing a)^[i] i
@@ -1202,15 +1298,15 @@ theorem fastGrowing_def {o : PreCantor} {x} (e : fundamentalSequence o = x) :
   subst x
   rw [fastGrowing]
 
-theorem fastGrowing_zero' (o : PreCantor) (h : fundamentalSequence o = Sum.inl none) :
+theorem fastGrowing_zero' (o : PreCantor) (h : FundamentalSeq o = Sum.inl none) :
     fastGrowing o = Nat.succ := by
   rw [fastGrowing_def h]
 
-theorem fastGrowing_succ (o) {a} (h : fundamentalSequence o = Sum.inl (some a)) :
+theorem fastGrowing_succ (o) {a} (h : FundamentalSeq o = Sum.inl (some a)) :
     fastGrowing o = fun i => (fastGrowing a)^[i] i := by
   rw [fastGrowing_def h]
 
-theorem fastGrowing_limit (o) {f} (h : fundamentalSequence o = Sum.inr f) :
+theorem fastGrowing_limit (o) {f} (h : FundamentalSeq o = Sum.inr f) :
     fastGrowing o = fun i => fastGrowing (f i) i := by
   rw [fastGrowing_def h]
 

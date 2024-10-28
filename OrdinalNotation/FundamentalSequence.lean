@@ -2,6 +2,8 @@ import Mathlib.SetTheory.Ordinal.Arithmetic
 
 universe u
 
+open Order
+
 namespace Ordinal
 
 variable {α : Type u} {β : Type*}
@@ -32,6 +34,14 @@ def ofFun (f : ℕ → α) : Sequence α :=
   Sum.inr f
 
 @[simp] theorem sum_inr_def (f : ℕ → α) : Sum.inr f = ofFun f := rfl
+
+/-- Recursion on sequences, using the preferred forms of the constructors. -/
+def recOn {p : Sequence α → Sort*} (s : Sequence α) (empty : p ∅) (singleton : ∀ x, p {x})
+    (ofFun : ∀ f, p (ofFun f)) : p s :=
+  match s with
+  | Sum.inl none => empty
+  | Sum.inl (some x) => singleton x
+  | Sum.inr f => ofFun f
 
 /-- Membership predicate for sequences -/
 def mem (s : Sequence α) (x : α) : Prop :=
@@ -65,11 +75,45 @@ theorem mem_map {s : Sequence α} {f : α → β} {b : β} : b ∈ s.map f ↔ �
   | Sum.inl (some x) => by simp [eq_comm]
   | Sum.inr g => by simp
 
+/-- The range of a sequence is the set of values it contains -/
+def range : Sequence α → Set α
+  | Sum.inl none => ∅
+  | Sum.inl (some x) => {x}
+  | Sum.inr f => Set.range f
+
+@[simp] theorem range_empty : range (∅ : Sequence α) = ∅ := rfl
+@[simp] theorem range_singleton (x : α) : range ({x} : Sequence α) = {x} := rfl
+@[simp] theorem range_ofFun (f : ℕ → α) : range (ofFun f) = Set.range f := rfl
+
 /-- Attach to a sequence the proof that it contains all its elements -/
 def attach : (s : Sequence α) → Sequence {a : α // a ∈ s}
   | Sum.inl none => ∅
   | Sum.inl (some x) => {⟨x, rfl⟩}
   | Sum.inr f => ofFun fun n ↦ ⟨f n, Set.mem_range_self n⟩
+
+/-- Partial map -/
+def pmap {α β : Type*} (s : Sequence α) (f : ∀ x ∈ s, β) : Sequence β :=
+  s.attach.map fun x ↦ f x.1 x.2
+
+@[simp]
+theorem pmap_empty {α β : Type*} (f : ∀ x ∈ (∅ : Sequence α), β) : pmap ∅ f = ∅ :=
+  rfl
+
+/-- `pmap_empty` but avoids type rewrites -/
+theorem pmap_eq_empty_of_empty {α β : Type*} {s : Sequence α} (hs : s = ∅)
+    (f : ∀ x ∈ s, β) : Sequence.pmap s f = ∅ := by
+  subst hs
+  rfl
+
+@[simp]
+theorem pmap_singleton {α β : Type*} (y : α) (f : ∀ x ∈ ({y} : Sequence α), β) :
+    pmap _ f = {f y rfl} :=
+  rfl
+
+@[simp]
+theorem pmap_ofFun {α β : Type*} (g : ℕ → α) (f : ∀ x ∈ ofFun g, β) :
+    pmap _ f = ofFun fun n ↦ f (g n) (Set.mem_range_self _) :=
+  rfl
 
 /-- Builds a list with the first `n` elements of the sequence. This can be used to print the
 sequence. -/
@@ -129,53 +173,101 @@ variable [Preorder α]
 
 /-- A fundamental sequence is a `Sequence` (with length 0, 1, or `ω`) which is strictly monotonic
 and converges to `top`. -/
-structure FundamentalSequence (top : α) : Type u where
+structure FundamentalSeq (top : α) : Type u where
   /-- The underlying `Sequence` -/
   sequence : Sequence α
   /-- A fundamental sequence is strictly monotonic -/
   strictMono : sequence.StrictMono
   /-- The fundamental sequence converges at `top` -/
-  limit_eq : sequence.IsLimit top
+  isLimit : sequence.IsLimit top
 
-namespace FundamentalSequence
+namespace FundamentalSeq
 
 @[ext]
-theorem ext (top : α) {f g : FundamentalSequence top} (h : f.sequence = g.sequence) : f = g := by
+theorem ext (top : α) {f g : FundamentalSeq top} (h : f.sequence = g.sequence) : f = g := by
   cases f; cases g;
   simpa
 
+/-- Recursion on the possible sequences the fundamental sequence is made out of. -/
+@[elab_as_elim]
+def recOnSequence {top : α} {p : FundamentalSeq top → Sort*} (s : FundamentalSeq top)
+    (empty : ∀ hl : IsMin top, p ⟨∅, rfl, hl⟩) (singleton : ∀ x (hl : x ⋖ top), p ⟨{x}, rfl, hl⟩)
+    (ofNat : ∀ f (hs : StrictMono f) hl, p ⟨ofFun f, hs, hl⟩) : p s := by
+  obtain ⟨(_ | _) | _, hs, hl⟩ := s
+  · exact empty hl
+  · exact singleton _ hl
+  · exact ofNat _ hs hl
+
+theorem lt_of_mem {top x : α} (s : FundamentalSeq top) : x ∈ s.sequence → x < top := by
+  refine recOnSequence s ?_ ?_ ?_
+  · simp
+  · intro y hy
+    rw [mem_singleton_iff]
+    rintro rfl
+    exact hy.lt
+  · intro f hs hl hx
+    obtain ⟨n, rfl⟩ := hx
+    exact lt_of_strictMono_of_isLimit hs hl n
+
 /-- Given a minimal element, the empty sequence is a fundamental sequence for it. -/
 @[simps]
-def ofIsMin {x : α} (hx : IsMin x) : FundamentalSequence x :=
+def ofIsMin {x : α} (hx : IsMin x) : FundamentalSeq x :=
   ⟨∅, strictMono_empty, isLimit_empty.2 hx⟩
 
 /-- The empty sequence is a fundamental sequence for `⊥`. -/
-abbrev bot [OrderBot α] : FundamentalSequence (⊥ : α) :=
-  FundamentalSequence.ofIsMin isMin_bot
+abbrev bot [OrderBot α] : FundamentalSeq (⊥ : α) :=
+  FundamentalSeq.ofIsMin isMin_bot
+
+/-- The empty sequence is the only fundamental sequence for `⊥` -/
+theorem eq_bot [OrderBot α] (s : FundamentalSeq (⊥ : α)) : s = bot := by
+  ext
+  refine recOnSequence s ?_ (fun x hx ↦ ?_) (fun f hs hl ↦ ?_)
+  · simp
+  · cases hx.lt.ne_bot rfl
+  · cases (lt_of_strictMono_of_isLimit hs hl 0).ne_bot rfl
+
+instance [OrderBot α] : Unique (FundamentalSeq (⊥ : α)) :=
+  ⟨⟨bot⟩, eq_bot⟩
 
 /-- If `y` covers `x`, then `x` is a fundamental sequence for `y`. -/
 @[simps]
-def ofCovby {x y : α} (h : x ⋖ y) : FundamentalSequence y :=
+def ofCovby {x y : α} (h : x ⋖ y) : FundamentalSeq y :=
   ⟨_, strictMono_singleton x, Sequence.isLimit_ofElement.2 h⟩
 
 /-- `x` is a fundamental sequence for `succ x`. -/
-abbrev succ (x : α) [SuccOrder α] [NoMaxOrder α] : FundamentalSequence (Order.succ x) :=
-  FundamentalSequence.ofCovby (Order.covBy_succ x)
+abbrev succ {x : α} (hx : ¬ IsMax x) [SuccOrder α] : FundamentalSeq (succ x) :=
+  ofCovby (covBy_succ_of_not_isMax hx)
 
-end FundamentalSequence
+/-- In a linear order, if `y` covers `x` then the only fundamental sequence for `y` is `x`. -/
+theorem eq_ofCovby {α} [LinearOrder α] {x y : α} (h : x ⋖ y)
+    (s : FundamentalSeq y) : s = ofCovby h := by
+  ext
+  refine recOnSequence s (fun hl ↦ ?_) (fun z hz ↦ ?_) (fun f hf hl ↦ ?_)
+  · cases hl.not_lt h.lt
+  · obtain rfl := h.unique_left hz
+    simp
+  · obtain ⟨n, hn⟩ := hl.1 h.lt
+    cases (hl.2 ⟨_, (h.ge_of_gt hn).trans_lt (hf n.lt_succ_self)⟩).false
 
-/-- A fundamental sequence system is a set of `FundamentalSequence`, one for each element of the
+/-- In a linear order, the only fundamental sequence for `succ x` is `x`. -/
+theorem eq_succ {α} [LinearOrder α] [SuccOrder α] {x : α} (hx : ¬ IsMax x)
+    (s : FundamentalSeq (Order.succ x)) : s = succ hx :=
+  eq_ofCovby _ _
+
+end FundamentalSeq
+
+/-- A fundamental sequence system is a set of `FundamentalSeq`, one for each element of the
 order. -/
-def FundamentalSequenceSystem (α : Type u) [Preorder α] : Type u :=
-  ∀ top : α, FundamentalSequence top
+def FundamentalSystem (α : Type u) [Preorder α] : Type u :=
+  ∀ top : α, FundamentalSeq top
 
-example : FundamentalSequenceSystem ℕ
-  | 0 => FundamentalSequence.ofIsMin isMin_bot
-  | n + 1 => FundamentalSequence.ofCovby (Order.covBy_add_one n)
+example : FundamentalSystem ℕ
+  | 0 => FundamentalSeq.bot
+  | n + 1 => FundamentalSeq.succ (not_isMax n)
 
 /-- An auxiliary definition for `slowGrowing` and `fastGrowing`. The function `g` describes what
 happens at the successor step. -/
-private def growingAux (s : FundamentalSequenceSystem α) [WellFoundedLT α]
+private def growingAux (s : FundamentalSystem α) [WellFoundedLT α]
     (x : α) (g : (ℕ → ℕ) → ℕ → ℕ) (n : ℕ) : ℕ :=
   match s x with
   | ⟨Sum.inl none, _, _⟩ => n + 1
@@ -189,7 +281,7 @@ termination_by wellFounded_lt.wrap x
 * `fastGrowing s x n = fastGrowing s (f n) n`, where `f` is the fundamental sequence converging to
   the limit `x`.
 -/
-def slowGrowing (s : FundamentalSequenceSystem α) [WellFoundedLT α] (x : α) : ℕ → ℕ :=
+def slowGrowing (s : FundamentalSystem α) [WellFoundedLT α] (x : α) : ℕ → ℕ :=
   growingAux s x fun f n ↦ f n + 1
 
 /-- The fast growing hierarchy, given a fundamental sequence system `s`, is defined as follows:
@@ -198,7 +290,7 @@ def slowGrowing (s : FundamentalSequenceSystem α) [WellFoundedLT α] (x : α) :
 * `fastGrowing s x n = fastGrowing s (f n) n`, where `f` is the fundamental sequence converging to
   the limit `x`.
 -/
-def fastGrowing (s : FundamentalSequenceSystem α) [WellFoundedLT α] (x : α) : ℕ → ℕ :=
+def fastGrowing (s : FundamentalSystem α) [WellFoundedLT α] (x : α) : ℕ → ℕ :=
   growingAux s x fun f n ↦ f^[n] n
 
 end Ordinal
