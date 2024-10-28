@@ -31,7 +31,10 @@ modified from the Mathlib original, to fix what I percieve to be various weaknes
 - `ONote` is renamed to `PreCantor` and `NONote` is renamed to `Cantor`.
 - The `Preorder` instance is no longer defined in terms of `repr`, thus making it computable.
 - `NFBelow` is disposed of, and `NF` is no longer a typeclass.
-- The definition of `add` is simplified.
+- The definition of `opow` is heavily simplified, avoiding multiple auxiliary definitions and
+  instead relying only on `natOpow`.
+- Most proofs are golfed substantially by relying on new lemmas for ordinal arithmetic (in
+  particular, I got rid of those hideous `simp only says`).
 -/
 
 open Ordinal Order Ordering
@@ -440,26 +443,6 @@ theorem NF.repr_oadd_lt_fst (hx : NF (oadd e n a)) {o} (he : repr e < o) :
     repr (oadd e n a) < ω ^ o :=
   (hx.repr_oadd_lt_snd n.lt_succ_self).trans <| omega0_opow_mul_nat_lt he _
 
-theorem NF.of_dvd_omega0_opow {b e n a} (h : NF (oadd e n a))
-    (d : ω ^ b ∣ repr (oadd e n a)) :
-    b ≤ repr e ∧ ω ^ b ∣ repr a := by
-  sorry
-  /-have := mt repr_inj.1 (fun h => by injection h : PreCantor.oadd e n a ≠ 0)
-  have L := le_of_not_lt fun l => not_le_of_lt (h.below_of_lt l).repr_lt (le_of_dvd this d)
-  simp only [repr] at d
-  exact ⟨L, (dvd_add_iff <| (opow_dvd_opow _ L).mul_right _).1 d⟩-/
-
-@[deprecated (since := "2024-09-30")]
-alias NF.of_dvd_omega_opow := NF.of_dvd_omega0_opow
-
-theorem NF.of_dvd_omega0 {e n a} (h : NF (PreCantor.oadd e n a)) :
-    ω ∣ repr (PreCantor.oadd e n a) → repr e ≠ 0 ∧ ω ∣ repr a := by
-  rw [← opow_one ω, ← one_le_iff_ne_zero]
-  exact h.of_dvd_omega0_opow
-
-@[deprecated (since := "2024-09-30")]
-alias NF.of_dvd_omega := NF.of_dvd_omega0
-
 /-! ### Addition -/
 
 /-- Addition of Cantor normal forms (correct only for normal input) -/
@@ -833,7 +816,9 @@ theorem repr_opow : ∀ {x y}, NF x → NF y → repr (x ^ y) = repr x ^ repr y
     simp
 
 #eval toString <| (omega + 1) ^ (omega + 1) ^ (omega + 1)
-#lint
+
+
+
 #exit
 
 /-- Given an ordinal, returns:
