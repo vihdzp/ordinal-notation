@@ -197,11 +197,8 @@ structure IsFundamental (s : Sequence α) (x : α) : Prop where
   /-- A fundamental sequence is strictly monotonic -/
   strictMono : s.StrictMono
   /-- A fundamental sequence for `x` has limit `x` -/
-  exists_lt_of_lt : ∀ y < x, ∃ z ∈ s.range, y < z
+  isLimit : IsLimit s x
 
-theorem IsFundamental.isLimit {s : Sequence α} {x : α} (h : IsFunadmental s x) : IsLimit s
-
-#exit
 theorem isFundamental_of_isBot {x : α} (h : IsBot x) : IsFundamental ∅ x :=
   ⟨rfl, isLimit_of_isBot h⟩
 
