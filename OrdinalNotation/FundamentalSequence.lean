@@ -9,6 +9,8 @@ namespace Ordinal
 
 variable {α : Type u} {β : Type*}
 
+/-! ### Sequences -/
+
 /-- The type of sequences with length 0, 1, or `ω`. -/
 def Sequence (α : Type u) : Type u :=
   Option α ⊕ (ℕ → α)
@@ -44,12 +46,21 @@ def recOn {p : Sequence α → Sort*} (s : Sequence α) (empty : p ∅) (singlet
   | Sum.inl (some x) => singleton x
   | Sum.inr f => ofFun f
 
+/-- The range of a sequence is the set of values it contains -/
+def range : Sequence α → Set α
+  | Sum.inl none => ∅
+  | Sum.inl (some x) => {x}
+  | Sum.inr f => Set.range f
+
+@[simp] theorem range_empty : range (∅ : Sequence α) = ∅ := rfl
+@[simp] theorem range_singleton (x : α) : range ({x} : Sequence α) = {x} := rfl
+@[simp] theorem range_ofFun (f : ℕ → α) : range (ofFun f) = Set.range f := rfl
+
+theorem mem_range_ofFun {f : ℕ → α} (n : ℕ) : f n ∈ range (ofFun f) := ⟨n, rfl⟩
+
 /-- Membership predicate for sequences -/
 def mem (s : Sequence α) (x : α) : Prop :=
-  match s with
-  | Sum.inl none => False
-  | Sum.inl (some y) => x = y
-  | Sum.inr f => x ∈ Set.range f
+  x ∈ s.range
 
 instance : Membership α (Sequence α) :=
   ⟨mem⟩
@@ -57,6 +68,7 @@ instance : Membership α (Sequence α) :=
 @[simp] theorem not_mem_empty (x : α) : x ∉ (∅ : Sequence α) := id
 @[simp] theorem mem_singleton_iff {x y : α} : x ∈ ({y} : Sequence α) ↔ x = y := Iff.rfl
 @[simp] theorem mem_ofFun_iff {x : α} {f : ℕ → α} : x ∈ ofFun f ↔ x ∈ Set.range f := Iff.rfl
+@[simp] theorem mem_range_iff {s : Sequence α} {x : α} : x ∈ s.range ↔ x ∈ s := Iff.rfl
 
 theorem mem_singleton (x : α) : x ∈ ({x} : Sequence α) := mem_singleton_iff.2 rfl
 
@@ -72,29 +84,26 @@ def map (s : Sequence α) (g : α → β) : Sequence β :=
 @[simp] theorem map_ofFun (f : ℕ → α) (g : α → β) : map (ofFun f) g = ofFun (g ∘ f) := rfl
 
 @[simp]
-theorem mem_map {s : Sequence α} {f : α → β} {b : β} : b ∈ s.map f ↔ ∃ a, a ∈ s ∧ f a = b :=
+theorem mem_map {s : Sequence α} {f : α → β} {b : β} : b ∈ s.map f ↔ ∃ a ∈ s, f a = b :=
   match s with
   | Sum.inl none => by simp
   | Sum.inl (some x) => by simp [eq_comm]
   | Sum.inr g => by simp
-
-/-- The range of a sequence is the set of values it contains -/
-def range : Sequence α → Set α
-  | Sum.inl none => ∅
-  | Sum.inl (some x) => {x}
-  | Sum.inr f => Set.range f
-
-@[simp] theorem range_empty : range (∅ : Sequence α) = ∅ := rfl
-@[simp] theorem range_singleton (x : α) : range ({x} : Sequence α) = {x} := rfl
-@[simp] theorem range_ofFun (f : ℕ → α) : range (ofFun f) = Set.range f := rfl
-
-theorem mem_range_setOf {f : ℕ → α} (n : ℕ) : f n ∈ range (ofFun f) := ⟨n, rfl⟩
 
 /-- Attach to a sequence the proof that it contains all its elements -/
 def attach : (s : Sequence α) → Sequence {a : α // a ∈ s}
   | Sum.inl none => ∅
   | Sum.inl (some x) => {⟨x, rfl⟩}
   | Sum.inr f => ofFun fun n ↦ ⟨f n, Set.mem_range_self n⟩
+
+@[simp]
+theorem mem_attach {s : Sequence α} {x : α} : ∀ h : x ∈ s, ⟨x, h⟩ ∈ s.attach := by
+  apply s.recOn
+  · simp
+  · rintro x rfl
+    rfl
+  · rintro f ⟨n, rfl⟩
+    exact ⟨n, rfl⟩
 
 /-- Partial map -/
 def pmap {α β : Type*} (s : Sequence α) (f : ∀ x ∈ s, β) : Sequence β :=
@@ -119,6 +128,11 @@ theorem pmap_singleton {α β : Type*} (y : α) (f : ∀ x ∈ ({y} : Sequence �
 theorem pmap_ofFun {α β : Type*} (g : ℕ → α) (f : ∀ x ∈ ofFun g, β) :
     pmap _ f = ofFun fun n ↦ f (g n) (Set.mem_range_self _) :=
   rfl
+
+@[simp]
+theorem mem_pmap {s : Sequence α} {f : ∀ x ∈ s, β} :
+    b ∈ s.pmap f ↔ ∃ (a : α) (h : a ∈ s), f a h = b := by
+  simp [pmap]
 
 /-- Builds a list with the first `n` elements of the sequence. This can be used to print the
 sequence. -/
@@ -160,7 +174,7 @@ theorem StrictMono.attach {s : Sequence α} (hs : s.StrictMono) : s.attach.Stric
 A length 0 sequence converges at a minimal element. A length 1 sequence `x` converges at the
 successor of `x`. -/
 def IsLimit (s : Sequence α) (y : α) : Prop :=
-  ∀ {x}, x < y ↔ ∃ z ∈ range s, x ≤ z
+  ∀ {x}, x < y ↔ ∃ z ∈ s, x ≤ z
 
 end Preorder
 
@@ -215,19 +229,29 @@ theorem isFundamental_succ_of_not_isMax [SuccOrder α] {x : α} (h : ¬ IsMax x)
 theorem isFundamental_succ [SuccOrder α] [NoMaxOrder α] (x : α) : IsFundamental {x} (succ x) :=
   isFundamental_succ_of_not_isMax (not_isMax x)
 
-theorem IsFundamental.lt {s : Sequence α} {x y : α} (hx : x ∈ s) (h : IsFundamental s y) : x < y :=
-  match s with
-  | Sum.inl none => by contradiction
-  | Sum.inl (some z) => by
-    obtain rfl := hx
+theorem IsFundamental.lt {s : Sequence α} {x y : α} : x ∈ s → IsFundamental s y → x < y := by
+  apply s.recOn
+  · rintro ⟨⟩
+  · rintro x rfl h
     exact (IsLimit.covBy h.isLimit).lt
-  | Sum.inr f => by
-    obtain ⟨n, rfl⟩ := hx
+  · rintro x ⟨n, rfl⟩ h
     exact (isLimit_ofFun.1 h.isLimit).2 ⟨n, le_rfl⟩
 
-theorem IsFundamental.lt_apply {f : ℕ → α} {x : α} (h : IsFundamental (ofFun f) x) (n : ℕ) :
-    f n < x :=
-  h.lt (Set.mem_range_self n)
+/-- The only fundamental sequence for `⊥` is `∅` -/
+theorem IsFundamental.eq_empty [OrderBot α] {s : Sequence α} : IsFundamental s ⊥ → s = ∅ := by
+  apply s.recOn
+  · simp
+  · intro x h
+    cases (h.lt (mem_singleton _)).ne_bot rfl
+  · intro x h
+    cases (h.lt (mem_range_ofFun 0)).ne_bot rfl
+
+@[simp]
+theorem IsFundamental.bot_iff_eq_empty [OrderBot α] {s : Sequence α} :
+    IsFundamental s ⊥ ↔ s = ∅ := by
+  use IsFundamental.eq_empty
+  rintro rfl
+  exact isFundamental_empty
 
 end LinearOrder
 
@@ -240,11 +264,18 @@ variable [LinearOrder α]
 /-- A fundamental sequence system is a pi type of fundamental sequences, one for each element of the
 order. -/
 def FundamentalSystem (α : Type u) [LinearOrder α] : Type u :=
-  ∀ top : α, { s : Sequence α // s.IsFundamental top }
+  ∀ x : α, { s : Sequence α // s.IsFundamental x }
 
 example : FundamentalSystem ℕ
   | 0 => ⟨_, isFundamental_empty⟩
   | n + 1 => ⟨_, isFundamental_succ n⟩
+
+@[simp]
+theorem fundamentalSystem_bot [OrderBot α] (s : FundamentalSystem α) :
+    s ⊥ = ⟨∅, isFundamental_empty⟩ :=
+  Subtype.ext (s ⊥).2.eq_empty
+
+/-! ### Fast growing hierarchy -/
 
 /-- An auxiliary definition for `slowGrowing` and `fastGrowing`. The function `g` describes what
 happens at the successor step. -/
@@ -253,8 +284,14 @@ private def growingAux (s : FundamentalSystem α) [WellFoundedLT α]
   match s x with
   | ⟨Sum.inl none, _⟩ => n + 1
   | ⟨Sum.inl (some y), h⟩ => have := h.lt (mem_singleton y); g (growingAux s y g) n
-  | ⟨Sum.inr f, h⟩ => have := h.lt (mem_range_setOf n); growingAux s (f n) g n
+  | ⟨Sum.inr f, h⟩ => have := h.lt (mem_range_ofFun n); growingAux s (f n) g n
 termination_by wellFounded_lt.wrap x
+
+variable [WellFoundedLT α]
+
+private theorem growingAux_bot [OrderBot α] (s : FundamentalSystem α)
+    (g : (ℕ → ℕ) → ℕ → ℕ) (n : ℕ) : growingAux s ⊥ g n = n + 1 := by
+  rw [growingAux, fundamentalSystem_bot s]
 
 /-- The slow growing hierarchy, given a fundamental sequence system `s`, is defined as follows:
 * `fastGrowing s ⊥ n = n + 1`
@@ -262,8 +299,13 @@ termination_by wellFounded_lt.wrap x
 * `fastGrowing s x n = fastGrowing s (f n) n`, where `f` is the fundamental sequence converging to
   the limit `x`.
 -/
-def slowGrowing (s : FundamentalSystem α) [WellFoundedLT α] (x : α) : ℕ → ℕ :=
+def slowGrowing (s : FundamentalSystem α) (x : α) : ℕ → ℕ :=
   growingAux s x fun f n ↦ f n + 1
+
+@[simp]
+theorem slowGrowing_bot [OrderBot α] (s : FundamentalSystem α) (n : ℕ) :
+    slowGrowing s ⊥ n = n + 1 :=
+  growingAux_bot _ _ _
 
 /-- The fast growing hierarchy, given a fundamental sequence system `s`, is defined as follows:
 * `fastGrowing s ⊥ n = n + 1`
@@ -273,5 +315,10 @@ def slowGrowing (s : FundamentalSystem α) [WellFoundedLT α] (x : α) : ℕ →
 -/
 def fastGrowing (s : FundamentalSystem α) [WellFoundedLT α] (x : α) : ℕ → ℕ :=
   growingAux s x fun f n ↦ f^[n] n
+
+@[simp]
+theorem fastGrowing_bot [OrderBot α] (s : FundamentalSystem α) (n : ℕ) :
+    fastGrowing s ⊥ n = n + 1 :=
+  growingAux_bot _ _ _
 
 end Ordinal
