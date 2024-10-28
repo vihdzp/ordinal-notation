@@ -331,11 +331,8 @@ end cmp
 
 /-! ### Normal forms -/
 
-/-- A normal form `PreCantor` has the form
-
-`ω ^ e₁ * n₁ + ω ^ e₂ * n₂ + ⋯ + ω ^ eₖ * nₖ`
-
-where `e₁ > e₂ > ⋯ > eₖ` and all the `eᵢ` are also in normal form.
+/-- A normal form `PreCantor` has the form `ω ^ e₁ * n₁ + ω ^ e₂ * n₂ + ⋯ + ω ^ eₖ * nₖ` where
+`e₁ > e₂ > ⋯ > eₖ` and all the `eᵢ` are also in normal form.
 
 We will essentially only be interested in normal forms, but to avoid complicating the algorithms, we
 define everything over `PreCantor` and only prove correctness with normal form as an invariant. -/
@@ -861,6 +858,10 @@ instance : Zero Cantor :=
 instance : Inhabited Cantor :=
   ⟨0⟩
 
+@[simp]
+theorem val_zero : (0 : Cantor).val = 0 :=
+  rfl
+
 instance : One Cantor :=
   ⟨⟨1, NF_one⟩⟩
 
@@ -968,6 +969,71 @@ instance : Pow Cantor Cantor :=
 @[simp]
 theorem repr_opow (a b) : repr (a ^ b) = repr a ^ repr b :=
   PreCantor.repr_opow a.2 b.2
+
+-- TODO: decidable instance for `IsLimit`
+
+/-! ### Fundamental sequences -/
+
+/-- Auxiliary definition for the Wainer hierarchy -/
+private def wainerAux : PreCantor → Sequence PreCantor
+  | 0 => ∅
+  | .oadd e n x@(.oadd _ _ _) => (wainerAux x).map (.oadd e n ·)
+  | .oadd e n 0 =>
+    let s := wainerAux e
+    match n with
+    | ⟨n + 2, _⟩ => s.map (.oadd e n.succPNat ·)
+    | 1 =>
+      match s with
+      | Sum.inl none => {0}
+      | Sum.inl (some x) => Sequence.ofFun fun k ↦ .oadd x k.succPNat 0
+      | Sum.inr _ => s.map (.oadd · 1 0)
+
+private theorem wainerAux_zero : wainerAux 0 = ∅ := by
+  rw [wainerAux.eq_def]
+
+private theorem NF_wainerAux (hx : x.NF) {y} (hy : y ∈ wainerAux x) : y.NF :=
+  match x with
+  | 0 => by rw [wainerAux_zero] at hy; contradiction
+  | .oadd e n x@(.oadd _ _ _) => by
+    rw [wainerAux, Sequence.mem_map] at hy
+    obtain ⟨a, ha, rfl⟩ := hy
+    rw [NF_oadd_iff]
+
+private theorem wainerAux_strictMono {x : PreCantor} : (wainerAux x).StrictMono :=
+  sorry
+
+def _root_.Ordinal.Sequence.pmap {α β : Type*} (s : Sequence α) (f : ∀ x ∈ s, β) : Sequence β :=
+  s.attach.map fun x ↦ f x.1 x.2
+
+theorem pmap_empty {α β : Type*} (f : ∀ x ∈ (∅ : Sequence α), β) : Sequence.pmap ∅ f = ∅ := rfl
+
+
+theorem pmap_eq_empty_of_empty {α β : Type*} {s : Sequence α} (hs : s = ∅)
+    (f : ∀ x ∈ s, β) : Sequence.pmap s f = ∅ := by
+  subst hs
+  rfl
+
+
+/-- The Wainer hierarchy is a fundamental sequence system for Cantor normal forms, defined as
+follows:
+
+* `(ω ^ e₁ + … + ω ^ eₖ)[n] = ω ^ e₁ + … + (ω ^ eₖ)[n]`
+* `(ω ^ (e + 1))[n] = ω ^ e * (n + 1)`
+* `(ω ^ e)[n] = ω ^ e[n]` for limit `e`
+-/
+def wainer : FundamentalSequenceSystem Cantor := by
+  refine fun x ↦ ⟨(wainerAux x.1).pmap fun y hy ↦ ⟨_, NF_wainerAux x.2 hy⟩, ?_, ?_⟩
+  · exact wainerAux_strictMono.attach.map fun x y h ↦ h
+  · sorry
+
+@[simp]
+theorem wainer_zero : wainer 0 = FundamentalSequence.bot := by
+  ext
+  dsimp only [wainer]
+  rw [pmap_eq_empty_of_empty]
+  · rfl
+  · exact wainerAux_zero
+
 
 end Cantor
 
