@@ -291,8 +291,6 @@ theorem IsFundamental.isSuccLimit {f : ℕ → α} {x : α} (h : IsFundamental (
   obtain ⟨z, ⟨n, rfl⟩, hy⟩ := h.2.1 hx.lt
   exact (hx.ge_of_gt <| hy.trans_lt (h.1 (Nat.lt_succ_self _))).not_lt (h.lt (mem_ofFun _))
 
-  #exit
-
 end LinearOrder
 
 end Sequence
@@ -307,12 +305,12 @@ def FundamentalSystem (α : Type u) [LinearOrder α] : Type u :=
   ∀ x : α, { s : Sequence α // s.IsFundamental x }
 
 example : FundamentalSystem ℕ
-  | 0 => ⟨_, isFundamental_empty⟩
+  | 0 => ⟨_, isFundamental_bot⟩
   | n + 1 => ⟨_, isFundamental_succ n⟩
 
 @[simp]
 theorem fundamentalSystem_bot [OrderBot α] (s : FundamentalSystem α) :
-    s ⊥ = ⟨∅, isFundamental_empty⟩ :=
+    s ⊥ = ⟨∅, isFundamental_bot⟩ :=
   Subtype.ext (s ⊥).2.eq_empty
 
 /-! ### Fast growing hierarchy -/
@@ -324,7 +322,7 @@ private def growingAux (s : FundamentalSystem α) [WellFoundedLT α]
   match s x with
   | ⟨Sum.inl none, _⟩ => n + 1
   | ⟨Sum.inl (some y), h⟩ => have := h.lt (mem_singleton y); g (growingAux s y g) n
-  | ⟨Sum.inr f, h⟩ => have := h.lt (mem_range_ofFun n); growingAux s (f n) g n
+  | ⟨Sum.inr f, h⟩ => have := h.lt (mem_ofFun n); growingAux s (f n) g n
 termination_by wellFounded_lt.wrap x
 
 variable [WellFoundedLT α]
