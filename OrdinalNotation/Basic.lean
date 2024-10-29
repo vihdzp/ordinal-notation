@@ -1146,6 +1146,10 @@ private theorem lt_oadd_oadd (hx : NF (oadd e₁ n₁ (oadd e₂ n₂ a))) (hy :
     (h : y < oadd e₁ n₁ (oadd e₂ n₂ a)) : ∃ z, NF z ∧ z < oadd e₂ n₂ a ∧ y ≤ oadd e₁ n₁ z := by
   sorry
 
+private theorem lt_oadd_succ (hx : NF e) (hy : NF y) (h : y < oadd (e + 1) 1 0) :
+    ∃ n : ℕ, y ≤ oadd e n.succPNat 0 :=
+  sorry
+
 theorem isLimit_wainerSeq (hx : NF x) (hy : NF y) : y < x ↔ ∃ z ∈ wainerSeq x, y ≤ z := by
   refine ⟨fun hyx ↦ ?_, fun ⟨z, hz, hy⟩ ↦ hy.trans_lt (lt_of_mem_wainerSeq hz)⟩
   match x with
@@ -1165,18 +1169,16 @@ theorem isLimit_wainerSeq (hx : NF x) (hy : NF y) : y < x ↔ ∃ z ∈ wainerSe
       simpa using hyx
     · rename_i z he
       replace hx := hx.fst
-      have hz' : z ∈ e.wainerSeq := by rw [he]; rfl
-      have hz : NF z := hx.wainerSeq hz'
-      have := fun (y : Cantor) ↦ isLimit_wainerSeq hx y.2
-      simp_rw [he, sum_inl_some_def, mem_singleton_iff, exists_eq_left] at this
-      change ∀ y : Cantor, y < ⟨e, hx⟩ ↔ y ≤ ⟨z, hz⟩ at this
-      have := covBy_iff_lt_iff_le.2 @this
-      have := covBy_iff_succ
+      have hz : NF z := hx.wainerSeq (he ▸ rfl)
+      have H := fun (y : Cantor) ↦ isLimit_wainerSeq hx y.2
+      simp_rw [he, sum_inl_some_def, mem_singleton_iff, exists_eq_left] at H
+      change ∀ y : Cantor, y < ⟨e, hx⟩ ↔ y ≤ ⟨z, hz⟩ at H
+      obtain rfl := Subtype.eq_iff.1 (covBy_iff_lt_iff_le.2 H).add_one_eq
+      simpa using lt_oadd_succ hz hy hyx
     · sorry
   | oadd e n 0 => sorry
 
 #exit
-
 end PreCantor
 
 namespace Cantor
@@ -1209,10 +1211,12 @@ theorem lt_of_mem_wainerSeq {x y : Cantor} (hx : x ∈ wainerSeq y) : x < y :=
 theorem wainerSeq_strictMono (x : Cantor) : (wainerSeq x).StrictMono :=
   (PreCantor.wainerSeq_strictMono _).attach.map fun _ _ h ↦ h
 
-private theorem lt_oadd_oadd {e₁ n₁ e₂ n₂ a h} {x : Cantor} :
-    x < ⟨.oadd e₁ n₁ (.oadd e₂ n₂ a), h⟩ ↔ ∃ (y : Cantor) (hy : y < ⟨_, h.snd⟩),
-      x ≤ ⟨.oadd e₁ n₁ y.1, (h.of_le y.2 hy.le)⟩ :=
-  sorry
+theorem isLimit_wainerSeq (x : Cantor) : (wainerSeq x).IsLimit x := by
+  refine @fun y ↦ ⟨fun hy ↦ ?_, ?_⟩
+  · obtain ⟨z, hz, hyz⟩ := (PreCantor.isLimit_wainerSeq x.2 y.2).1 hy
+    exact ⟨⟨z, x.2.wainerSeq hz⟩, mem_wainerSeq.2 hz, hyz⟩
+  · rintro ⟨z, hz, hyz⟩
+    exact hyz.trans_lt (lt_of_mem_wainerSeq hz)
 
 theorem isFundamental_wainerSeq (x : Cantor) : IsFundamental (wainerSeq x) x :=
   ⟨wainerSeq_strictMono x, isLimit_wainerSeq x⟩
