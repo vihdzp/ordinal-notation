@@ -100,9 +100,8 @@ theorem map_eq_empty_iff {s : Sequence α} {g : α → β} : s.map g = ∅ ↔ s
 @[simp]
 theorem mem_map {s : Sequence α} {f : α → β} {b : β} : b ∈ s.map f ↔ ∃ a ∈ s, f a = b :=
   match s with
-  | Sum.inl none => by simp
+  | Sum.inl none | Sum.inr g => by simp
   | Sum.inl (some x) => by simp [eq_comm]
-  | Sum.inr g => by simp
 
 /-- Attach to a sequence the proof that it contains all its elements -/
 def attach : (s : Sequence α) → Sequence {a : α // a ∈ s}
@@ -168,7 +167,7 @@ section Preorder
 
 variable [Preorder α] [Preorder β]
 
-/-- A sequence of length `0` or `1` is always strictly monotonic. For a sequence of length `ω`,
+/-- A sequence of length 0 or 1 is always strictly monotonic. For a sequence of length `ω`,
 `StrictMono` just reduces to the usual predicate. -/
 protected def StrictMono : Sequence α → Prop
   | Sum.inl _ => True
@@ -181,14 +180,12 @@ protected def StrictMono : Sequence α → Prop
 theorem StrictMono.map {s : Sequence α} (hs : s.StrictMono) {g : α → β} (h : StrictMono g) :
     (s.map g).StrictMono :=
   match s with
-  | Sum.inl none => ⟨⟩
-  | Sum.inl (some _) => ⟨⟩
+  | Sum.inl none | Sum.inl (some _) => ⟨⟩
   | Sum.inr _ => h.comp hs
 
 theorem StrictMono.attach {s : Sequence α} (hs : s.StrictMono) : s.attach.StrictMono :=
   match s with
-  | Sum.inl none => ⟨⟩
-  | Sum.inl (some _) => ⟨⟩
+  | Sum.inl none | Sum.inl (some _) => ⟨⟩
   | Sum.inr _ => fun _ _ h ↦ hs h
 
 end Preorder
@@ -199,8 +196,8 @@ variable [LinearOrder α] [LinearOrder β]
 
 /-- The limit of a sequence is the least value strictly greater than all its elements.
 
-A length 0 sequence converges at a minimal element. A length 1 sequence `x` converges at the
-successor of `x`. -/
+A length 0 sequence converges at a minimal element. A length 1 sequence `x` converges at
+`succ x`. -/
 def IsLimit (s : Sequence α) (y : α) : Prop :=
   ∀ {x}, x < y ↔ ∃ z ∈ s, x ≤ z
 
@@ -359,7 +356,7 @@ theorem fundamentalSystem_succ [SuccOrder α] [NoMaxOrder α] (s : FundamentalSy
     s (succ x) = ⟨_, isFundamental_succ x⟩ :=
   Subtype.ext (s _).2.eq_succ
 
-/-- Given a fundamental sequence system for `α`, extends it to a fundamental sequence system for
+/-- Given a fundamental sequence system for `α`, extend it to a fundamental sequence system for
 `WithTop α` by using a specified function as the fundamental sequence for `⊤`. -/
 def FundamentalSystem.withTop (s : FundamentalSystem α) (f : ℕ → α) (hs : StrictMono f)
     (hl : ∀ x : α, ∃ n, x ≤ f n) : FundamentalSystem (WithTop α)
