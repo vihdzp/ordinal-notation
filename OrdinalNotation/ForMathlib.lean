@@ -105,7 +105,7 @@ theorem not_isBot_succ [LinearOrder α] [SuccOrder α] [Nontrivial α] (x : α) 
 
 @[simps!]
 def PrincipalSeg.withTopCoe [Preorder α] : α <i WithTop α := by
-  refine ⟨OrderEmbedding.withTopCoe.ltEmbedding, ⊤, ?_⟩
-  change ∀ b, b ∈ Set.range WithTop.some ↔ _
+  refine ⟨OrderEmbedding.withTopCoe.ltEmbedding, ⊤, fun x ↦ ?_⟩
+  change x ∈ Set.range WithTop.some ↔ _
   rw [WithTop.range_coe]
-  exact fun b ↦ Iff.rfl
+  rfl
