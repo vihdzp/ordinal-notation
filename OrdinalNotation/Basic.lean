@@ -1158,14 +1158,14 @@ theorem NF.wainerSeq (hx : x.NF) (hy : y ∈ wainerSeq x) : y.NF := by
       exact hx.fst.oadd _ (this ha) (lt_of_mem_wainerSeq ha)
 
 theorem wainerSeq_strictMono : ∀ x : PreCantor, (wainerSeq x).StrictMono
-  | 0 => rfl
+  | 0 => ⟨⟩
   | .oadd e n (oadd _ _ _) => (wainerSeq_strictMono _).map fun x y ↦ oadd_lt_oadd_thd
   | .oadd e n 0 => by
     have : (wainerSeq (.oadd e 1 0)).StrictMono := by
       rw [wainerSeq.eq_def]
       dsimp
       split
-      · rfl
+      · trivial
       · exact fun x y h ↦ oadd_lt_oadd_snd <| Nat.succPNat_lt_succPNat.2 h
       · rename_i hf
         exact fun x y h ↦ oadd_lt_oadd_fst <| (hf ▸ wainerSeq_strictMono _) h

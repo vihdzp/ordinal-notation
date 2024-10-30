@@ -171,24 +171,24 @@ variable [Preorder α] [Preorder β]
 /-- A sequence of length `0` or `1` is always strictly monotonic. For a sequence of length `ω`,
 `StrictMono` just reduces to the usual predicate. -/
 protected def StrictMono : Sequence α → Prop
-  | Sum.inl _ => true
+  | Sum.inl _ => True
   | Sum.inr f => _root_.StrictMono f
 
-@[simp] theorem strictMono_empty : (∅ : Sequence α).StrictMono := rfl
-@[simp] theorem strictMono_singleton (x : α) : ({x} : Sequence α).StrictMono := rfl
+@[simp] theorem strictMono_empty : (∅ : Sequence α).StrictMono := ⟨⟩
+@[simp] theorem strictMono_singleton (x : α) : ({x} : Sequence α).StrictMono := ⟨⟩
 @[simp] theorem strictMono_ofFun {f : ℕ → α} : (ofFun f).StrictMono ↔ StrictMono f := Iff.rfl
 
 theorem StrictMono.map {s : Sequence α} (hs : s.StrictMono) {g : α → β} (h : StrictMono g) :
     (s.map g).StrictMono :=
   match s with
-  | Sum.inl none => rfl
-  | Sum.inl (some _) => rfl
+  | Sum.inl none => ⟨⟩
+  | Sum.inl (some _) => ⟨⟩
   | Sum.inr _ => h.comp hs
 
 theorem StrictMono.attach {s : Sequence α} (hs : s.StrictMono) : s.attach.StrictMono :=
   match s with
-  | Sum.inl none => rfl
-  | Sum.inl (some _) => rfl
+  | Sum.inl none => ⟨⟩
+  | Sum.inl (some _) => ⟨⟩
   | Sum.inr _ => fun _ _ h ↦ hs h
 
 end Preorder
@@ -205,13 +205,13 @@ def IsLimit (s : Sequence α) (y : α) : Prop :=
   ∀ {x}, x < y ↔ ∃ z ∈ s, x ≤ z
 
 @[simp]
-theorem isLimit_empty {x : α} : IsLimit ∅ x ↔ IsBot x := by
-  simp [IsLimit, isBot_iff_isMin, isMin_iff_forall_not_lt]
+theorem isLimit_empty {x : α} : IsLimit ∅ x ↔ IsMin x := by
+  simp [IsLimit, isMin_iff_forall_not_lt]
 
-alias ⟨IsLimit.isBot, isLimit_of_isBot⟩ := isLimit_empty
+alias ⟨IsLimit.isMin, isLimit_of_isMin⟩ := isLimit_empty
 
 theorem isLimit_bot [OrderBot α] : IsLimit ∅ (⊥ : α) :=
-  isLimit_of_isBot isBot_bot
+  isLimit_of_isMin isMin_bot
 
 @[simp]
 theorem isLimit_singleton {x y : α} : IsLimit {x} y ↔ x ⋖ y := by
@@ -260,13 +260,13 @@ structure IsFundamental (s : Sequence α) (x : α) : Prop where
   isLimit : IsLimit s x
 
 @[simp]
-theorem isFundamental_empty {x : α} : IsFundamental ∅ x ↔ IsBot x := by
+theorem isFundamental_empty {x : α} : IsFundamental ∅ x ↔ IsMin x := by
   simp [isFundamental_iff]
 
-alias ⟨IsFundamental.isBot, isFundamental_of_isBot⟩ := isFundamental_empty
+alias ⟨IsFundamental.isMin, isFundamental_of_isMin⟩ := isFundamental_empty
 
 theorem isFundamental_bot [OrderBot α] : IsFundamental ∅ (⊥ : α) :=
-  isFundamental_of_isBot isBot_bot
+  isFundamental_of_isMin isMin_bot
 
 @[simp]
 theorem isFundamental_singleton {x y : α} : IsFundamental {x} y ↔ x ⋖ y := by
@@ -308,7 +308,7 @@ theorem IsFundamental.eq_succ [SuccOrder α] [NoMaxOrder α] {s : Sequence α} :
   have : Inhabited α := ⟨x⟩
   have : Infinite α := NoMaxOrder.infinite
   apply s.recOn
-  · simp
+  · simpa using not_isMin_succ x
   · simp [← succ_eq_iff_covBy]
   · intro f hf
     simpa using hf.isSuccLimit
