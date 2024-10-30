@@ -97,3 +97,8 @@ theorem CovBy.add_one_eq [PartialOrder α] [Add α] [One α] [SuccAddOrder α] {
     a + 1 = b := by
   rw [← succ_eq_add_one]
   exact h.succ_eq
+
+@[simp]
+theorem not_isBot_succ [LinearOrder α] [SuccOrder α] [Nontrivial α] (x : α) :
+    ¬ IsBot (Order.succ x) :=
+  fun h ↦ not_isMin_succ x h.isMin

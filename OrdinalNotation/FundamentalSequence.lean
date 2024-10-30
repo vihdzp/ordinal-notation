@@ -1,4 +1,5 @@
 import Mathlib.SetTheory.Ordinal.Arithmetic
+import Mathlib.Order.Interval.Set.Infinite
 import OrdinalNotation.ForMathlib
 
 universe u
@@ -40,6 +41,9 @@ theorem singleton_ne_empty (x : α) : ({x} : Sequence α) ≠ ∅ := by
 @[simp]
 theorem ofFun_ne_empty (f : ℕ → α) : ofFun f ≠ ∅ :=
   Sum.inr_ne_inl
+
+@[simp] theorem empty_ne_singleton (x : α) : ∅ ≠ ({x} : Sequence α) := (singleton_ne_empty x).symm
+@[simp] theorem empty_ne_ofFun (f : ℕ → α) : ∅ ≠ ofFun f := (ofFun_ne_empty f).symm
 
 @[simp] theorem sum_inl_none_def : Sum.inl none = (∅ : Sequence α) := rfl
 @[simp] theorem sum_inl_some_def (x : α) : Sum.inl (some x) = ({x} : Sequence α) := rfl
@@ -168,8 +172,8 @@ protected def StrictMono : Sequence α → Prop
   | Sum.inl _ => true
   | Sum.inr f => _root_.StrictMono f
 
-theorem strictMono_empty : (∅ : Sequence α).StrictMono := rfl
-theorem strictMono_singleton (x : α) : ({x} : Sequence α).StrictMono := rfl
+@[simp] theorem strictMono_empty : (∅ : Sequence α).StrictMono := rfl
+@[simp] theorem strictMono_singleton (x : α) : ({x} : Sequence α).StrictMono := rfl
 @[simp] theorem strictMono_ofFun {f : ℕ → α} : (ofFun f).StrictMono ↔ StrictMono f := Iff.rfl
 
 theorem StrictMono.map {s : Sequence α} (hs : s.StrictMono) {g : α → β} (h : StrictMono g) :
@@ -248,24 +252,31 @@ theorem IsLimit.bot_iff_eq_empty [OrderBot α] {s : Sequence α} : IsLimit s ⊥
   exact isLimit_bot
 
 /-- A fundamental sequence for `x` is a strictly monotonic sequence with limit `x`. -/
+@[mk_iff]
 structure IsFundamental (s : Sequence α) (x : α) : Prop where
   /-- A fundamental sequence is strictly monotonic -/
   strictMono : s.StrictMono
   /-- A fundamental sequence for `x` has limit `x` -/
   isLimit : IsLimit s x
 
-theorem isFundamental_of_isBot {x : α} (h : IsBot x) : IsFundamental ∅ x :=
-  ⟨rfl, isLimit_of_isBot h⟩
+@[simp]
+theorem isFundamental_empty {x : α} : IsFundamental ∅ x ↔ IsBot x := by
+  simp [isFundamental_iff]
+
+alias ⟨IsFundamental.isBot, isFundamental_of_isBot⟩ := isFundamental_empty
 
 theorem isFundamental_bot [OrderBot α] : IsFundamental ∅ (⊥ : α) :=
   isFundamental_of_isBot isBot_bot
 
-theorem isFundamental_singleton {x y : α} (h : x ⋖ y) : IsFundamental {x} y :=
-  ⟨rfl, isLimit_of_covBy h⟩
+@[simp]
+theorem isFundamental_singleton {x y : α} : IsFundamental {x} y ↔ x ⋖ y := by
+  simp [isFundamental_iff, covBy_iff_lt_iff_le]
+
+alias ⟨IsFundamental.covBy, isFundamental_of_covBy⟩ := isFundamental_singleton
 
 theorem isFundamental_succ_of_not_isMax [SuccOrder α] {x : α} (h : ¬ IsMax x) :
     IsFundamental {x} (succ x) :=
-  isFundamental_singleton (covBy_succ_of_not_isMax h)
+  isFundamental_of_covBy (covBy_succ_of_not_isMax h)
 
 theorem isFundamental_succ [SuccOrder α] [NoMaxOrder α] (x : α) : IsFundamental {x} (succ x) :=
   isFundamental_succ_of_not_isMax (not_isMax x)
@@ -291,6 +302,24 @@ theorem IsFundamental.isSuccLimit {f : ℕ → α} {x : α} (h : IsFundamental (
   obtain ⟨z, ⟨n, rfl⟩, hy⟩ := h.2.1 hx.lt
   exact (hx.ge_of_gt <| hy.trans_lt (h.1 (Nat.lt_succ_self _))).not_lt (h.lt (mem_ofFun _))
 
+/-- The only fundamental sequence for `succ x` is `{x}` -/
+theorem IsFundamental.eq_succ [SuccOrder α] [NoMaxOrder α] {s : Sequence α} :
+    IsFundamental s (succ x) → s = {x} := by
+  have : Inhabited α := ⟨x⟩
+  have : Infinite α := NoMaxOrder.infinite
+  apply s.recOn
+  · simp
+  · simp [← succ_eq_iff_covBy]
+  · intro f hf
+    simpa using hf.isSuccLimit
+
+@[simp]
+theorem IsFundamental.succ_iff_eq_singleton [SuccOrder α] [NoMaxOrder α] {s : Sequence α} :
+    IsFundamental s (succ x) ↔ s = {x} := by
+  use IsFundamental.eq_succ
+  rintro rfl
+  exact isFundamental_succ x
+
 end LinearOrder
 
 end Sequence
@@ -313,6 +342,11 @@ theorem fundamentalSystem_bot [OrderBot α] (s : FundamentalSystem α) :
     s ⊥ = ⟨∅, isFundamental_bot⟩ :=
   Subtype.ext (s ⊥).2.eq_empty
 
+@[simp]
+theorem fundamentalSystem_succ [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α) (x : α) :
+    s (succ x) = ⟨_, isFundamental_succ x⟩ :=
+  Subtype.ext (s _).2.eq_succ
+
 /-! ### Fast growing hierarchy -/
 
 /-- An auxiliary definition for `slowGrowing` and `fastGrowing`. The function `g` describes what
@@ -331,6 +365,10 @@ private theorem growingAux_bot [OrderBot α] (s : FundamentalSystem α)
     (g : (ℕ → ℕ) → ℕ → ℕ) (n : ℕ) : growingAux s ⊥ g n = n + 1 := by
   rw [growingAux, fundamentalSystem_bot s]
 
+private theorem growingAux_succ [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α) (x : α)
+    (g : (ℕ → ℕ) → ℕ → ℕ) (n : ℕ) : growingAux s (succ x) g n = g (growingAux s x g) n := by
+  rw [growingAux, fundamentalSystem_succ s]
+
 /-- The slow growing hierarchy, given a fundamental sequence system `s`, is defined as follows:
 * `fastGrowing s ⊥ n = n + 1`
 * `fastGrowing s (succ x) n = fastGrowing s x n + 1`
@@ -343,7 +381,12 @@ def slowGrowing (s : FundamentalSystem α) (x : α) : ℕ → ℕ :=
 @[simp]
 theorem slowGrowing_bot [OrderBot α] (s : FundamentalSystem α) (n : ℕ) :
     slowGrowing s ⊥ n = n + 1 :=
-  growingAux_bot _ _ _
+  growingAux_bot ..
+
+@[simp]
+theorem slowGrowing_succ [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α) (x : α) (n : ℕ) :
+    slowGrowing s (succ x) n = slowGrowing s x n + 1 :=
+  growingAux_succ ..
 
 /-- The fast growing hierarchy, given a fundamental sequence system `s`, is defined as follows:
 * `fastGrowing s ⊥ n = n + 1`
@@ -357,6 +400,11 @@ def fastGrowing (s : FundamentalSystem α) [WellFoundedLT α] (x : α) : ℕ →
 @[simp]
 theorem fastGrowing_bot [OrderBot α] (s : FundamentalSystem α) (n : ℕ) :
     fastGrowing s ⊥ n = n + 1 :=
-  growingAux_bot _ _ _
+  growingAux_bot ..
+
+@[simp]
+theorem fastGrowing_succ [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α) (x : α) (n : ℕ) :
+    fastGrowing s (succ x) n = (fastGrowing s x)^[n] n :=
+  growingAux_succ ..
 
 end Ordinal
