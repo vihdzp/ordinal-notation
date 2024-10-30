@@ -337,12 +337,10 @@ example : FundamentalSystem ℕ
   | 0 => ⟨_, isFundamental_bot⟩
   | n + 1 => ⟨_, isFundamental_succ n⟩
 
-@[simp]
 theorem fundamentalSystem_bot [OrderBot α] (s : FundamentalSystem α) :
     s ⊥ = ⟨∅, isFundamental_bot⟩ :=
   Subtype.ext (s ⊥).2.eq_empty
 
-@[simp]
 theorem fundamentalSystem_succ [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α) (x : α) :
     s (succ x) = ⟨_, isFundamental_succ x⟩ :=
   Subtype.ext (s _).2.eq_succ
@@ -362,7 +360,8 @@ termination_by wellFounded_lt.wrap x
 variable [WellFoundedLT α]
 
 private theorem growingAux_bot [OrderBot α] (s : FundamentalSystem α)
-    (g : (ℕ → ℕ) → ℕ → ℕ) (n : ℕ) : growingAux s ⊥ g n = n + 1 := by
+    (g : (ℕ → ℕ) → ℕ → ℕ) : growingAux s ⊥ g = Nat.succ := by
+  ext n
   rw [growingAux, fundamentalSystem_bot s]
 
 private theorem growingAux_succ [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α) (x : α)
@@ -378,10 +377,15 @@ private theorem growingAux_succ [SuccOrder α] [NoMaxOrder α] (s : FundamentalS
 def slowGrowing (s : FundamentalSystem α) (x : α) : ℕ → ℕ :=
   growingAux s x fun f n ↦ f n + 1
 
+/-- The unapplied version of `slowGrowing_bot` -/
 @[simp]
-theorem slowGrowing_bot [OrderBot α] (s : FundamentalSystem α) (n : ℕ) :
-    slowGrowing s ⊥ n = n + 1 :=
+theorem slowGrowing_bot' [OrderBot α] (s : FundamentalSystem α) :
+    slowGrowing s ⊥ = Nat.succ :=
   growingAux_bot ..
+
+theorem slowGrowing_bot [OrderBot α] (s : FundamentalSystem α) (n : ℕ) :
+    slowGrowing s ⊥ n = n + 1 := by
+  rw [slowGrowing_bot']
 
 @[simp]
 theorem slowGrowing_succ [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α) (x : α) (n : ℕ) :
@@ -397,10 +401,15 @@ theorem slowGrowing_succ [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem �
 def fastGrowing (s : FundamentalSystem α) [WellFoundedLT α] (x : α) : ℕ → ℕ :=
   growingAux s x fun f n ↦ f^[n] n
 
+/-- The unapplied version of `fastGrowing_bot` -/
 @[simp]
-theorem fastGrowing_bot [OrderBot α] (s : FundamentalSystem α) (n : ℕ) :
-    fastGrowing s ⊥ n = n + 1 :=
+theorem fastGrowing_bot' [OrderBot α] (s : FundamentalSystem α) :
+    fastGrowing s ⊥ = Nat.succ :=
   growingAux_bot ..
+
+theorem fastGrowing_bot [OrderBot α] (s : FundamentalSystem α) (n : ℕ) :
+    fastGrowing s ⊥ n = n + 1 := by
+  rw [fastGrowing_bot']
 
 @[simp]
 theorem fastGrowing_succ [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α) (x : α) (n : ℕ) :
