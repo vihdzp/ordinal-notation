@@ -383,15 +383,14 @@ private theorem growingAux_limit (s : FundamentalSystem α) {x : α} {f : ℕ �
 def slowGrowing (s : FundamentalSystem α) (x : α) : ℕ → ℕ :=
   growingAux s x fun f n ↦ f n + 1
 
-/-- The unapplied version of `slowGrowing_bot` -/
 @[simp]
-theorem slowGrowing_bot' [OrderBot α] (s : FundamentalSystem α) :
+theorem slowGrowing_bot [OrderBot α] (s : FundamentalSystem α) :
     slowGrowing s ⊥ = Nat.succ :=
   growingAux_bot ..
 
-theorem slowGrowing_bot [OrderBot α] (s : FundamentalSystem α) (n : ℕ) :
+theorem slowGrowing_bot_apply [OrderBot α] (s : FundamentalSystem α) (n : ℕ) :
     slowGrowing s ⊥ n = n + 1 := by
-  rw [slowGrowing_bot']
+  rw [slowGrowing_bot]
 
 @[simp]
 theorem slowGrowing_succ [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α) (x : α) (n : ℕ) :
@@ -411,23 +410,43 @@ theorem slowGrowing_limit (s : FundamentalSystem α) {x : α} {f : ℕ → α} (
 def fastGrowing (s : FundamentalSystem α) [WellFoundedLT α] (x : α) : ℕ → ℕ :=
   growingAux s x fun f n ↦ f^[n] n
 
-/-- The unapplied version of `fastGrowing_bot` -/
 @[simp]
-theorem fastGrowing_bot' [OrderBot α] (s : FundamentalSystem α) :
+theorem fastGrowing_bot [OrderBot α] (s : FundamentalSystem α) :
     fastGrowing s ⊥ = Nat.succ :=
   growingAux_bot ..
 
-theorem fastGrowing_bot [OrderBot α] (s : FundamentalSystem α) (n : ℕ) :
+theorem fastGrowing_bot_apply [OrderBot α] (s : FundamentalSystem α) (n : ℕ) :
     fastGrowing s ⊥ n = n + 1 := by
-  rw [fastGrowing_bot']
+  rw [fastGrowing_bot]
 
 @[simp]
-theorem fastGrowing_succ [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α) (x : α) (n : ℕ) :
-    fastGrowing s (succ x) n = (fastGrowing s x)^[n] n :=
-  growingAux_succ ..
+theorem fastGrowing_succ [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α) (x : α) :
+    fastGrowing s (succ x) = fun n ↦ (fastGrowing s x)^[n] n := by
+  ext n
+  exact growingAux_succ ..
+
+theorem fastGrowing_succ_apply [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α) (x : α)
+    (n : ℕ) : fastGrowing s (succ x) n = (fastGrowing s x)^[n] n := by
+  rw [fastGrowing_succ]
 
 theorem fastGrowing_limit (s : FundamentalSystem α) {x : α} {f : ℕ → α} (h : s x = ofFun f)
     (n : ℕ) : fastGrowing s x n = fastGrowing s (f n) n :=
   growingAux_limit s h ..
+
+theorem fastGrowing_one [OrderBot α] [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α) :
+    fastGrowing s (succ ⊥) = fun n ↦ 2 * n := by
+  simp [Nat.succ_iterate, two_mul]
+
+theorem fastGrowing_one_apply [OrderBot α] [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α)
+    (n : ℕ) : fastGrowing s (succ ⊥) n = 2 * n :=
+  congr_fun (fastGrowing_one s) n
+
+theorem fastGrowing_two [OrderBot α] [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α) :
+    fastGrowing s (succ (succ ⊥)) = fun n ↦ 2 ^ n * n := by
+  simp [Nat.succ_iterate, ← two_mul]
+
+theorem fastGrowing_two_apply [OrderBot α] [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α)
+    (n : ℕ) : fastGrowing s (succ (succ ⊥)) n = 2 ^ n * n :=
+  congr_fun (fastGrowing_two s) n
 
 end Ordinal
