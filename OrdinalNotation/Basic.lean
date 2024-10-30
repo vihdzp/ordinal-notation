@@ -1331,7 +1331,7 @@ theorem wainer_val (x : Cantor) : (wainer x).1 = wainerSeq x :=
 
 /-- Extend the Wainer hierarchy to `ε₀` by defining its fundamental sequence as
 `0`, `1`, `ω`, `ω ^ ω`, `ω ^ ω ^ ω`, … -/
-def wainer_withTop : FundamentalSystem (WithTop Cantor) := by
+def wainerWithTop : FundamentalSystem (WithTop Cantor) := by
   refine wainer.withTop (fun n ↦ ⟨_, NF_oadd_iterate n⟩) ?_ ?_
   · apply strictMono_nat_of_lt_succ
     simp_rw [Function.iterate_succ_apply']
@@ -1341,5 +1341,17 @@ def wainer_withTop : FundamentalSystem (WithTop Cantor) := by
     use m + 2
     simp_rw [Function.iterate_succ_apply']
     exact (oadd_lt_oadd_fst <| (Subtype.mk_le_mk.1 hm).trans_lt (lt_oadd_self _ _ _)).le
+
+@[simp]
+theorem fastGrowing_top_zero : fastGrowing wainerWithTop ⊤ 0 = 1 := by
+  native_decide
+
+@[simp]
+theorem fastGrowing_top_one : fastGrowing wainerWithTop ⊤ 1 = 2 := by
+  native_decide
+
+@[simp]
+theorem fastGrowing_top_two : fastGrowing wainerWithTop ⊤ 2 = 2048 := by
+  native_decide
 
 end Cantor
