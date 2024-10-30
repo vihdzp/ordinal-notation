@@ -162,6 +162,8 @@ def toList (s : Sequence α) (n : ℕ) : List α :=
   | Sum.inl (some x) => [x]
   | Sum.inr f => (List.range n).map f
 
+/-! ### Fundamental sequences -/
+
 section Preorder
 
 variable [Preorder α] [Preorder β]
@@ -190,8 +192,6 @@ theorem StrictMono.attach {s : Sequence α} (hs : s.StrictMono) : s.attach.Stric
   | Sum.inr _ => fun _ _ h ↦ hs h
 
 end Preorder
-
-/-! ### Fundamental sequences -/
 
 section LinearOrder
 
@@ -368,6 +368,12 @@ private theorem growingAux_succ [SuccOrder α] [NoMaxOrder α] (s : FundamentalS
     (g : (ℕ → ℕ) → ℕ → ℕ) (n : ℕ) : growingAux s (succ x) g n = g (growingAux s x g) n := by
   rw [growingAux, fundamentalSystem_succ s]
 
+private theorem growingAux_limit (s : FundamentalSystem α) {x : α} {f : ℕ → α} (h : s x = ofFun f)
+    (g : (ℕ → ℕ) → ℕ → ℕ) (n : ℕ) : growingAux s x g n = growingAux s (f n) g n := by
+  have : s x = ⟨ofFun f, h ▸ (s x).2⟩ := Subtype.eq h
+  rw [growingAux, this]
+  rfl
+
 /-- The slow growing hierarchy, given a fundamental sequence system `s`, is defined as follows:
 * `fastGrowing s ⊥ n = n + 1`
 * `fastGrowing s (succ x) n = fastGrowing s x n + 1`
@@ -392,6 +398,10 @@ theorem slowGrowing_succ [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem �
     slowGrowing s (succ x) n = slowGrowing s x n + 1 :=
   growingAux_succ ..
 
+theorem slowGrowing_limit (s : FundamentalSystem α) {x : α} {f : ℕ → α} (h : s x = ofFun f)
+    (n : ℕ) : slowGrowing s x n = slowGrowing s (f n) n :=
+  growingAux_limit s h ..
+
 /-- The fast growing hierarchy, given a fundamental sequence system `s`, is defined as follows:
 * `fastGrowing s ⊥ n = n + 1`
 * `fastGrowing s (succ x) n = (fastGrowing s x)^[n] n`
@@ -415,5 +425,9 @@ theorem fastGrowing_bot [OrderBot α] (s : FundamentalSystem α) (n : ℕ) :
 theorem fastGrowing_succ [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α) (x : α) (n : ℕ) :
     fastGrowing s (succ x) n = (fastGrowing s x)^[n] n :=
   growingAux_succ ..
+
+theorem fastGrowing_limit (s : FundamentalSystem α) {x : α} {f : ℕ → α} (h : s x = ofFun f)
+    (n : ℕ) : fastGrowing s x n = fastGrowing s (f n) n :=
+  growingAux_limit s h ..
 
 end Ordinal
