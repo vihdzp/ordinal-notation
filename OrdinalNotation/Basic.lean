@@ -1342,6 +1342,8 @@ def wainerWithTop : FundamentalSystem (WithTop Cantor) := by
     simp_rw [Function.iterate_succ_apply']
     exact (oadd_lt_oadd_fst <| (Subtype.mk_le_mk.1 hm).trans_lt (lt_oadd_self _ _ _)).le
 
+-- TODO: change to `decide` once the sorries have been disposed of
+
 @[simp]
 theorem fastGrowing_top_zero : fastGrowing wainerWithTop ⊤ 0 = 1 := by
   native_decide
