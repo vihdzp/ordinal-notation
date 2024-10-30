@@ -204,6 +204,13 @@ successor of `x`. -/
 def IsLimit (s : Sequence α) (y : α) : Prop :=
   ∀ {x}, x < y ↔ ∃ z ∈ s, x ≤ z
 
+theorem IsLimit.exists_le_of_lt {s : Sequence α} {x y : α} (hl : IsLimit s y) (h : x < y) :
+    ∃ z ∈ s, x ≤ z :=
+  hl.1 h
+
+theorem IsLimit.lt {s : Sequence α} {x y : α} (hl : IsLimit s y) (h : x ∈ s) : x < y :=
+  hl.2 ⟨x, h, le_rfl⟩
+
 @[simp]
 theorem isLimit_empty {x : α} : IsLimit ∅ x ↔ IsMin x := by
   simp [IsLimit, isMin_iff_forall_not_lt]
@@ -228,14 +235,6 @@ theorem isLimit_succ [SuccOrder α] [NoMaxOrder α] (x : α) : IsLimit {x} (succ
 theorem isLimit_ofFun {f : ℕ → α} : IsLimit (ofFun f) y ↔ ∀ {x}, x < y ↔ ∃ n, x ≤ f n := by
   simp [IsLimit]
 
-theorem IsLimit.lt {s : Sequence α} {x y : α} : IsLimit s y → x ∈ s → x < y := by
-  apply s.recOn
-  · rintro _ ⟨⟩
-  · rintro x h rfl
-    exact (IsLimit.covBy h).lt
-  · rintro x h ⟨n, rfl⟩
-    exact (isLimit_ofFun.1 h).2 ⟨n, le_rfl⟩
-
 /-- The only sequence converging to `⊥` is `∅` -/
 theorem IsLimit.eq_empty [OrderBot α] {s : Sequence α} : IsLimit s ⊥ → s = ∅ := by
   apply s.recOn
@@ -250,6 +249,17 @@ theorem IsLimit.bot_iff_eq_empty [OrderBot α] {s : Sequence α} : IsLimit s ⊥
   use IsLimit.eq_empty
   rintro rfl
   exact isLimit_bot
+
+theorem IsLimit.map {s : Sequence α} {x : α} (h : IsLimit s x) (f : α ≤i β) :
+    IsLimit (s.map f) (f x) := by
+  intro y
+  simp_rw [mem_map, exists_exists_and_eq_and]
+  refine ⟨fun hy ↦ ?_, ?_⟩
+  · obtain ⟨y, rfl⟩ := f.mem_range_of_le hy.le
+    obtain ⟨z, hz, hyz⟩ := h.1 (f.lt_iff_lt.1 hy)
+    exact ⟨z, hz, f.le_iff_le.2 hyz⟩
+  · rintro ⟨z, hz, hyz⟩
+    exact hyz.trans_lt (f.lt_iff_lt.2 <| h.lt hz)
 
 /-- A fundamental sequence for `x` is a strictly monotonic sequence with limit `x`. -/
 @[mk_iff]
@@ -320,6 +330,10 @@ theorem IsFundamental.succ_iff_eq_singleton [SuccOrder α] [NoMaxOrder α] {s : 
   rintro rfl
   exact isFundamental_succ x
 
+theorem IsFundamental.map {s : Sequence α} {x : α} (h : IsFundamental s x) (f : α ≤i β) :
+    IsFundamental (s.map f) (f x) :=
+  ⟨h.1.map f.strictMono, IsLimit.map h.2 _⟩
+
 end LinearOrder
 
 end Sequence
@@ -344,6 +358,19 @@ theorem fundamentalSystem_bot [OrderBot α] (s : FundamentalSystem α) :
 theorem fundamentalSystem_succ [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α) (x : α) :
     s (succ x) = ⟨_, isFundamental_succ x⟩ :=
   Subtype.ext (s _).2.eq_succ
+
+/-- Given a fundamental sequence system for `α`, extends it to a fundamental sequence system for
+`WithTop α` by using a specified function as the fundamental sequence for `⊤`. -/
+def FundamentalSystem.withTop (s : FundamentalSystem α) (f : ℕ → α) (hs : StrictMono f)
+    (hl : ∀ x : α, ∃ n, x ≤ f n) : FundamentalSystem (WithTop α)
+  | some x => ⟨_, (s x).2.map (@PrincipalSeg.withTopCoe α _)⟩
+  | ⊤ => by
+    refine ⟨ofFun fun n ↦ f n, WithTop.coe_strictMono.comp hs, @fun x ↦ ⟨fun hx ↦ ?_, ?_⟩⟩
+    · obtain ⟨x, rfl⟩ := PrincipalSeg.withTopCoe.mem_range_of_rel_top hx
+      obtain ⟨n, hn⟩ := hl x
+      exact ⟨_, mem_ofFun n, WithTop.coe_le_coe.2 hn⟩
+    · simp_rw [mem_ofFun_iff, Set.mem_range, exists_exists_eq_and, forall_exists_index]
+      exact fun n hn ↦ hn.trans_lt (WithTop.coe_lt_top _)
 
 /-! ### Fast growing hierarchy -/
 
@@ -375,9 +402,9 @@ private theorem growingAux_limit (s : FundamentalSystem α) {x : α} {f : ℕ �
   rfl
 
 /-- The slow growing hierarchy, given a fundamental sequence system `s`, is defined as follows:
-* `fastGrowing s ⊥ n = n + 1`
-* `fastGrowing s (succ x) n = fastGrowing s x n + 1`
-* `fastGrowing s x n = fastGrowing s (f n) n`, where `f` is the fundamental sequence converging to
+* `slowGrowing s ⊥ n = n + 1`
+* `slowGrowing s (succ x) n = slowGrowing s x n + 1`
+* `slowGrowing s x n = slowGrowing s (f n) n`, where `f` is the fundamental sequence converging to
   the limit `x`.
 -/
 def slowGrowing (s : FundamentalSystem α) (x : α) : ℕ → ℕ :=

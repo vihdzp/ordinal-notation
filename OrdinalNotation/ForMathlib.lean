@@ -102,3 +102,10 @@ theorem CovBy.add_one_eq [PartialOrder α] [Add α] [One α] [SuccAddOrder α] {
 theorem not_isBot_succ [LinearOrder α] [SuccOrder α] [Nontrivial α] (x : α) :
     ¬ IsBot (Order.succ x) :=
   fun h ↦ not_isMin_succ x h.isMin
+
+@[simps!]
+def PrincipalSeg.withTopCoe [Preorder α] : α <i WithTop α := by
+  refine ⟨OrderEmbedding.withTopCoe.ltEmbedding, ⊤, ?_⟩
+  change ∀ b, b ∈ Set.range WithTop.some ↔ _
+  rw [WithTop.range_coe]
+  exact fun b ↦ Iff.rfl

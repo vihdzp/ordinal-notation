@@ -317,6 +317,11 @@ theorem oadd_lt_oadd_thd (h : a₁ < a₂) : oadd e n a₁ < oadd e n a₂ := by
   rw [oadd_lt_oadd]
   exact Or.inr ⟨rfl, Or.inr ⟨rfl, h⟩⟩
 
+theorem lt_oadd_self (e n a) : e < oadd e n a :=
+  match e with
+  | 0 => oadd_pos 0 n a
+  | oadd e n a => oadd_lt_oadd_fst (lt_oadd_self e n a)
+
 theorem oadd_le_oadd : oadd e₁ n₁ a₁ ≤ oadd e₂ n₂ a₂ ↔
     e₁ < e₂ ∨ e₁ = e₂ ∧ (n₁ < n₂ ∨ n₁ = n₂ ∧ a₁ ≤ a₂) := by
   simp_rw [le_iff_lt_or_eq, oadd_lt_oadd, oadd_inj]
@@ -401,8 +406,14 @@ theorem NF_natCast (n : ℕ) : NF n := by
 theorem NF_one : NF 1 :=
   NF_natCast 1
 
-theorem NF_omega : NF omega := by
-  decide
+theorem NF_oadd_iterate : ∀ n : ℕ, NF ((oadd · 1 0)^[n] 0)
+  | 0 => NF.zero
+  | n + 1 => by
+    rw [Function.iterate_succ_apply']
+    exact (NF_oadd_iterate n).oadd _ NF.zero (oadd_pos _ _ _)
+
+theorem NF_omega : NF omega :=
+  NF_oadd_iterate 2
 
 theorem repr_lt_repr_of_lt : ∀ {x y}, NF x → NF y → x < y → repr x < repr y
   | _, 0, _, _, h => by simp at h
@@ -1314,6 +1325,21 @@ follows:
 def wainer : FundamentalSystem Cantor :=
   fun x ↦ ⟨_, isFundamental_wainerSeq x⟩
 
-@[simp] theorem wainer_val (x : Cantor) : (wainer x).1 = wainerSeq x := rfl
+@[simp]
+theorem wainer_val (x : Cantor) : (wainer x).1 = wainerSeq x :=
+  rfl
+
+/-- Extend the Wainer hierarchy to `ε₀` by defining its fundamental sequence as
+`0`, `1`, `ω`, `ω ^ ω`, `ω ^ ω ^ ω`, … -/
+def wainer_withTop : FundamentalSystem (WithTop Cantor) := by
+  refine wainer.withTop (fun n ↦ ⟨_, NF_oadd_iterate n⟩) ?_ ?_
+  · apply strictMono_nat_of_lt_succ
+    simp_rw [Function.iterate_succ_apply']
+    exact fun _ ↦ lt_oadd_self _ _ _
+  · refine fun x ↦ recOn x ⟨0, le_rfl⟩ ?_
+    rintro e n a h ⟨m, hm⟩ -
+    use m + 2
+    simp_rw [Function.iterate_succ_apply']
+    exact (oadd_lt_oadd_fst <| (Subtype.mk_le_mk.1 hm).trans_lt (lt_oadd_self _ _ _)).le
 
 end Cantor
