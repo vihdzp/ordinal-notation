@@ -70,6 +70,20 @@ theorem succ_mul_of_isLimit {a b : Ordinal} (ha : a ≠ 0) (hb : IsLimit b) : su
   apply (mul_le_mul_right' (add_le_add_left (Ordinal.one_le_iff_ne_zero.2 ha) _) _).trans
   rw [← mul_two, mul_assoc, mul_ofNat_of_isLimit _ hb]
 
+theorem le_sub_of_add_le {a b c : Ordinal} (h : b + c ≤ a) : c ≤ a - b := by
+  rw [← add_le_add_iff_left b]
+  exact h.trans (le_add_sub a b)
+
+theorem sub_lt_of_lt_add {a b c : Ordinal} (h : a < b + c) (hc : 0 < c) : a - b < c := by
+  obtain hab | hba := lt_or_le a b
+  · rwa [Ordinal.sub_eq_zero_iff_le.2 hab.le]
+  · rwa [sub_lt_of_le hba]
+
+theorem lt_add_iff {a b c : Ordinal} (hc : c ≠ 0) : a < b + c ↔ ∃ d < c, a ≤ b + d := by
+  use fun h ↦ ⟨_, sub_lt_of_lt_add h hc.bot_lt, le_add_sub a b⟩
+  rintro ⟨d, hd, ha⟩
+  exact ha.trans_lt (add_lt_add_left hd b)
+
 end Ordinal
 
 theorem PNat.one_lt_of_ne {n : ℕ+} (hn : n ≠ 1) : 1 < n := by
