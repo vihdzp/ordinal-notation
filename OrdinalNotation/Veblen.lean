@@ -15,7 +15,8 @@ open Ordinal Order Ordering
 and `vadd s a n b` is intended to refer to `veblen s a * n + b`, where `veblen` is the two-argument
 Veblen function.
 
-Comparison is performed so that `veblen s₁ a₁ < veblen s₂ a₂` iff one of the following holds:
+Comparison on `PreVeblen` coincides with the comparison of its ordinal values. In particular,
+`veblen s₁ a₁ < veblen s₂ a₂` iff one of the following holds:
 
 * `s₁ < s₂` and `a₁ < veblen s₂ a₂`
 * `s₁ = s₂` and `a₁ < a₂`
@@ -90,7 +91,7 @@ def cmp : PreVeblen → PreVeblen → Ordering
   | vadd s₁ a₁ n₁ b₁, vadd s₂ a₂ n₂ b₂ =>
     have : toLex (sizeOf (vadd s₁ a₁ 1 0), sizeOf a₂) <
         toLex (sizeOf (vadd s₁ a₁ n₁ b₁), sizeOf (vadd s₂ a₂ n₂ b₂)) := by
-      apply Prod.Lex.lt_of_le_of_lt
+      apply Prod.Lex.toLex_strictMono (Prod.mk_lt_mk_of_le_of_lt _ _)
       · simpa using one_le_sizeOf _
       · decreasing_tactic
     let veblenCmp : Ordering := match cmp s₁ s₂ with
@@ -142,5 +143,54 @@ protected theorem le_zero {x : PreVeblen} : x ≤ 0 ↔ x = 0 := by
 
 protected theorem zero_lt_one : (0 : PreVeblen) < 1 := by
   decide
+
+/-! ### Normal forms -/
+
+/-- A normal form `PreVeblen` has the form
+`veblen s₁ a₁ * n₁ + veblen s₂ a₂ * n₂ + ⋯ + veblen sₖ aₖ * nₖ` where `aᵢ < veblen sᵢ aᵢ`,
+`veblen s₁ a₁ > veblen s₂ a₂ > ⋯ > veblen sₖ aₖ`, and all the `sᵢ` and `aᵢ` are also in normal form.
+
+We will essentially only be interested in normal forms, but to avoid complicating the algorithms, we
+define everything over `PreVeblen` and only prove correctness with normal form as an invariant. -/
+inductive NF : PreVeblen → Prop
+  /-- Zero is a normal form. -/
+  | zero : NF 0
+  /-- `veblen s e * n + a` is a normal form when `s`, `e`, and `a` are normal forms with
+  `e, a < veblen s e`. -/
+  | vadd' {s a b} : NF s → NF a → (n : ℕ+) → NF b → a < vadd s a 1 0 → b < vadd s a 1 0 →
+      NF (vadd s a n b)
+
+@[nolint defLemma]
+protected alias NF.vadd := NF.vadd'
+
+theorem NF_vadd_iff : NF (vadd s a n b) ↔ NF s ∧ NF a ∧ NF b ∧
+    a < vadd s a 1 0 ∧ b < vadd s a 1 0 := by
+  refine ⟨?_, fun ⟨hs, ha, hb, ha', hb'⟩ ↦ hs.vadd ha n hb ha' hb'⟩
+  rintro ⟨⟩
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩
+  assumption'
+
+private def decidable_NF : DecidablePred NF := fun x ↦
+  match x with
+  | 0 => Decidable.isTrue NF.zero
+  | vadd s a n b => by
+    refine @decidable_of_iff _ _ NF_vadd_iff.symm ?_
+    letI := decidable_NF s
+    letI := decidable_NF a
+    letI := decidable_NF b
+    infer_instance
+
+instance : DecidablePred NF :=
+  decidable_NF
+
+/-! ### Veblen function -/
+
+/-- The two-argument Veblen function.
+
+Unlike the constructor `vadd x y 1 0`, this ensures that the output is a normal form whenever the
+inputs are. -/
+def veblen (x y : PreVeblen) : PreVeblen :=
+  let z := vadd x y 1 0
+  if y < z then z else y
 
 end PreVeblen
