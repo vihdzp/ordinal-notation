@@ -44,11 +44,8 @@ open Ordinal Order Ordering
 and `oadd e n a` is intended to refer to `ω ^ e * n + a`.
 
 Comparison is performed lexicographically. We say that `ω ^ e * n + a` is a normal form
-`PreCantor.NF` whenever `a < ω ^ e` and both `e` and `a` are normal forms.
-
-For this to be a valid Cantor normal form, we must have the exponents decrease to the right, but we
-can't state this condition until we've defined the ordering, so we make it a separate definition
-`NF`. -/
+`PreCantor.NF` whenever `a < ω ^ e` and both `e` and `a` are normal forms. `Cantor` is the subtype
+of normal forms. -/
 inductive PreCantor : Type
   /-- The ordinal `0` -/
   | zero : PreCantor
@@ -92,6 +89,9 @@ instance : One PreCantor :=
 @[simp]
 theorem one_def : oadd 0 1 0 = 1 :=
   rfl
+
+instance : NeZero (1 : PreCantor) :=
+  ⟨oadd_ne_zero⟩
 
 /-- The ordinal `ω` is represented as `oadd 1 1 0 = ω ^ 1 * 1 + 0`. -/
 def omega : PreCantor :=
@@ -1015,6 +1015,9 @@ theorem repr_natCast (n : ℕ) : repr n = n :=
 @[simp]
 theorem repr_ofNat (n : ℕ) [n.AtLeastTwo] : repr (no_index (OfNat.ofNat n)) = n :=
   repr_natCast n
+
+instance : NeZero (1 : Cantor) :=
+  ⟨by decide⟩
 
 theorem injective_natCast : Function.Injective (NatCast.natCast (R := Cantor)) := by
   intro x y h
