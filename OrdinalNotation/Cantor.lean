@@ -152,6 +152,18 @@ theorem oadd_zero_pNat_zero (n : ℕ+) : oadd 0 n 0 = n := by
     repr (no_index (OfNat.ofNat n)) = n :=
   repr_natCast n
 
+theorem injective_natCast : Function.Injective (NatCast.natCast (R := PreCantor)) := by
+  intro m n h
+  apply_fun repr at h
+  simpa using h
+
+@[simp]
+theorem natCast_inj (m n : ℕ) : (m : PreCantor) = n ↔ m = n :=
+  injective_natCast.eq_iff
+
+instance : Infinite PreCantor :=
+  Infinite.of_injective _ injective_natCast
+
 /-- Print `ω ^ s * n`, omitting `s` if `e = 0` or `e = 1`, and omitting `n` if `n = 1` -/
 private def toString_aux (e : PreCantor) (n : ℕ) (s : String) : String :=
   if e = 0 then toString n
@@ -177,6 +189,56 @@ private def repr' (prec : ℕ) : PreCantor → Format
 
 instance : Repr PreCantor where
   reprPrec o prec := repr' prec o
+
+/-! ### Cardinality -/
+
+inductive S : Type where
+  | nat (n : ℕ)
+  | cons (a b : S)
+
+instance : Coe ℕ S := ⟨S.nat⟩
+instance (n : Nat) : OfNat S n := ⟨n⟩
+
+def S.toNat : S → ℕ
+  | nat n => Nat.pair 0 n
+  | cons a b => Nat.pair (a.toNat + 1) b.toNat
+
+theorem S.toNat_injective : Function.Injective S.toNat
+  | nat m, nat n
+  | cons a b, nat n
+  | nat m, cons a b => by simp [S.toNat]
+  | cons a b, cons c d => by
+    simp_rw [toNat, Nat.pair_eq_pair, add_left_inj, cons.injEq]
+    exact fun ⟨h₁, h₂⟩ ↦ ⟨S.toNat_injective h₁, S.toNat_injective h₂⟩
+
+instance : Countable S :=
+  S.toNat_injective.countable
+
+def _root_.PNat.toS (n : ℕ+) : S := (n : ℕ)
+theorem _root_.PNat.toS_injective : Function.Injective PNat.toS := by
+  simp [Function.Injective, PNat.toS]
+
+def toS : PreCantor → S
+  | .zero => .cons 0 0
+  | .oadd x n y => .cons 1 (.cons x.toS (.cons n.toS y.toS))
+
+-- Written by Kyle Miller: https://leanprover.zulipchat.com/#narrow/channel/116395-maths/topic/Countability.20of.20inductive.20type/near/479790761
+theorem toS_injective : Function.Injective PreCantor.toS := by
+  intro x
+  induction x with
+  | zero => rintro (_ | _) <;> simp [toS]
+  | oadd x n y ihx ihy =>
+    rintro (_|_)
+    · simp [toS]
+    simp [toS]
+    intro h1 h2 h3
+    cases ihx h1
+    cases ihy h3
+    cases PNat.toS_injective h2
+    simp
+
+instance : Countable PreCantor :=
+  toS_injective.countable
 
 /-! ### Ordering -/
 
@@ -953,6 +1015,21 @@ theorem repr_natCast (n : ℕ) : repr n = n :=
 @[simp]
 theorem repr_ofNat (n : ℕ) [n.AtLeastTwo] : repr (no_index (OfNat.ofNat n)) = n :=
   repr_natCast n
+
+theorem injective_natCast : Function.Injective (NatCast.natCast (R := Cantor)) := by
+  intro x y h
+  apply_fun Subtype.val at h
+  exact PreCantor.injective_natCast h
+
+@[simp]
+theorem natCast_inj (m n : ℕ) : (m : Cantor) = n ↔ m = n :=
+  injective_natCast.eq_iff
+
+instance : Infinite Cantor :=
+  Infinite.of_injective _ injective_natCast
+
+instance : Countable Cantor :=
+  Subtype.countable
 
 theorem repr_lt_repr_iff {x y : Cantor} : repr x < repr y ↔ x < y :=
   repr.lt_iff_lt
