@@ -436,7 +436,7 @@ def FundamentalSystem.withTop [FundamentalSystem α] (f : ℕ → α) (hs : Stri
 happens at the successor step. -/
 private def growingWith [FundamentalSystem α] [WellFoundedLT α] (x : α) (g : (ℕ → ℕ) → ℕ → ℕ)
     (n : ℕ) : ℕ :=
-  have s : {s // IsFundamental s x} := ⟨_, isFundamental_fundamentalSeq x⟩
+  let s : {s // IsFundamental s x} := ⟨_, isFundamental_fundamentalSeq x⟩
   match s with
   | ⟨Sum.inl none, _⟩ => n + 1
   | ⟨Sum.inl (some y), h⟩ => have := h.lt (mem_singleton y); g (growingWith y g) n
@@ -461,11 +461,11 @@ private theorem growingWith_limit {x : α} {f : ℕ → α} (h : fundamentalSeq 
   simp_rw [h]
   rfl
 
-/-- The slow growing hierarchy, given a fundamental sequence system `s`, is defined as follows:
-* `slowGrowing s ⊥ n = n + 1`
-* `slowGrowing s (succ x) n = slowGrowing s x n + 1`
-* `slowGrowing s x n = slowGrowing s (f n) n`, where `f` is the fundamental sequence converging to
-  the limit `x`.
+/-- The slow growing hierarchy, given a fundamental sequence system is defined as follows:
+* `slowGrowing ⊥ n = n + 1`
+* `slowGrowing (succ x) n = slowGrowing x n + 1`
+* `slowGrowing x n = slowGrowing (f n) n`, where `f` is the fundamental sequence converging to the
+  limit `x`.
 -/
 def slowGrowing (x : α) : ℕ → ℕ :=
   growingWith x fun f n ↦ f n + 1
@@ -487,11 +487,11 @@ theorem slowGrowing_limit {x : α} {f : ℕ → α} (h : fundamentalSeq x = ofFu
     slowGrowing x n = slowGrowing (f n) n :=
   growingWith_limit h ..
 
-/-- The fast growing hierarchy, given a fundamental sequence system `s`, is defined as follows:
-* `fastGrowing s ⊥ n = n + 1`
-* `fastGrowing s (succ x) n = (fastGrowing s x)^[n] n`
-* `fastGrowing s x n = fastGrowing s (f n) n`, where `f` is the fundamental sequence converging to
-  the limit `x`.
+/-- The fast growing hierarchy, given a fundamental sequence system is defined as follows:
+* `fastGrowing ⊥ n = n + 1`
+* `fastGrowing (succ x) n = (fastGrowing x)^[n] n`
+* `fastGrowing x n = fastGrowing (f n) n`, where `f` is the fundamental sequence converging to the
+  limit `x`.
 -/
 def fastGrowing (x : α) : ℕ → ℕ :=
   growingWith x fun f n ↦ f^[n] n
