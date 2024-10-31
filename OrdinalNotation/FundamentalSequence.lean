@@ -57,7 +57,7 @@ def recOn {p : Sequence α → Sort*} (s : Sequence α) (empty : p ∅) (singlet
   | Sum.inl (some x) => singleton x
   | Sum.inr f => ofFun f
 
-/-- The range of a sequence is the set of values it contains -/
+/-- The range of a sequence is the set of values it attains -/
 def range : Sequence α → Set α
   | Sum.inl none => ∅
   | Sum.inl (some x) => {x}
@@ -153,6 +153,26 @@ theorem mem_pmap {s : Sequence α} {f : ∀ x ∈ s, β} :
     b ∈ s.pmap f ↔ ∃ (a : α) (h : a ∈ s), f a h = b := by
   simp [pmap]
 
+/-- `s[n]` returns the `n`-th element of the fundamental sequence `s`. By convention, we take
+`∅[n] = ⊥` and `{x}[n] = x`. -/
+instance [LE α] [OrderBot α] : GetElem (Sequence α) ℕ α fun _ _ ↦ True
+  where getElem s n _ := match s with
+    | Sum.inl none => ⊥
+    | Sum.inl (some x) => x
+    | Sum.inr f => f n
+
+@[simp]
+theorem getElem_empty [LE α] [OrderBot α] (n : ℕ) : (∅ : Sequence α)[n] = ⊥ :=
+  rfl
+
+@[simp]
+theorem getElem_singleton [LE α] [OrderBot α] (x : α) (n : ℕ) : ({x} : Sequence α)[n] = x :=
+  rfl
+
+@[simp]
+theorem getElem_ofFun [LE α] [OrderBot α] (f : ℕ → α) (n : ℕ) : (ofFun f)[n] = f n :=
+  rfl
+
 /-- Builds a list with the first `n` elements of the sequence. This can be used to print the
 sequence. -/
 def toList (s : Sequence α) (n : ℕ) : List α :=
@@ -237,7 +257,7 @@ theorem IsLimit.eq_empty [OrderBot α] {s : Sequence α} : IsLimit s ⊥ → s =
   apply s.recOn
   · simp
   · intro x h
-    cases (h.lt (mem_singleton _)).ne_bot rfl
+    cases (h.lt (mem_singleton x)).ne_bot rfl
   · intro x h
     cases (h.lt (mem_ofFun 0)).ne_bot rfl
 
@@ -339,63 +359,106 @@ open Sequence
 
 variable [LinearOrder α]
 
-/-- A fundamental sequence system is a pi type of fundamental sequences, one for each element of the
-order. -/
-def FundamentalSystem (α : Type u) [LinearOrder α] : Type u :=
-  ∀ x : α, { s : Sequence α // s.IsFundamental x }
+/-- A typeclass for types with a "canonical" system of fundamental sequences. -/
+class FundamentalSystem (α : Type u) [LinearOrder α] where
+  /-- Returns a fundamental sequence for each element of the type. -/
+  fundamentalSeq : α → Sequence α
+  /-- The fundamental sequence for `x` has the necessary property. -/
+  isFundamental_fundamentalSeq (x : α) : IsFundamental (fundamentalSeq x) x
 
-example : FundamentalSystem ℕ
-  | 0 => ⟨_, isFundamental_bot⟩
-  | n + 1 => ⟨_, isFundamental_succ n⟩
+/-- A "canonical" fundamental sequence for `x`. -/
+def fundamentalSeq [FundamentalSystem α] (x : α) : Sequence α :=
+  FundamentalSystem.fundamentalSeq x
 
-theorem fundamentalSystem_bot [OrderBot α] (s : FundamentalSystem α) :
-    s ⊥ = ⟨∅, isFundamental_bot⟩ :=
-  Subtype.ext (s ⊥).2.eq_empty
+theorem isFundamental_fundamentalSeq [FundamentalSystem α] (x : α) :
+    IsFundamental (fundamentalSeq x) x :=
+  FundamentalSystem.isFundamental_fundamentalSeq x
 
-theorem fundamentalSystem_succ [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α) (x : α) :
-    s (succ x) = ⟨_, isFundamental_succ x⟩ :=
-  Subtype.ext (s _).2.eq_succ
+@[ext]
+theorem FundamentalSystem.ext {s t : FundamentalSystem α}
+    (h : ∀ x, s.fundamentalSeq x = t.fundamentalSeq x) : s = t := by
+  cases s
+  cases t
+  congr
+  ext
+  exact h _
+
+@[simp]
+theorem fundamentalSeq_bot [FundamentalSystem α] [OrderBot α] :
+    fundamentalSeq (⊥ : α) = ∅ :=
+  (isFundamental_fundamentalSeq _).eq_empty
+
+@[simp]
+theorem fundamentalSeq_succ [FundamentalSystem α] [SuccOrder α] [NoMaxOrder α] (x : α) :
+    fundamentalSeq (succ x) = {x} :=
+  (isFundamental_fundamentalSeq _).eq_succ
+
+/-- The unique fundamental system on `ℕ`. The fast-growing hierarchy when endowed with this system
+is sometimes called the Grzegorczyk hierarchy. -/
+instance : FundamentalSystem ℕ where
+  fundamentalSeq n := match n with
+    | 0 => ∅
+    | n + 1 => {n}
+  isFundamental_fundamentalSeq n := match n with
+    | 0 => isFundamental_bot
+    | n + 1 => isFundamental_succ n
+
+instance : Unique (FundamentalSystem ℕ) := by
+  let s : FundamentalSystem ℕ := inferInstance
+  refine ⟨⟨s⟩, fun _ ↦ ?_⟩
+  ext n
+  cases n
+  · exact fundamentalSeq_bot.trans (@fundamentalSeq_bot _ _ s _).symm
+  · exact (fundamentalSeq_succ _).trans (@fundamentalSeq_succ _ _ s _ _ _).symm
 
 /-- Given a fundamental sequence system for `α`, extend it to a fundamental sequence system for
 `WithTop α` by using a specified function as the fundamental sequence for `⊤`. -/
-def FundamentalSystem.withTop (s : FundamentalSystem α) (f : ℕ → α) (hs : StrictMono f)
-    (hl : ∀ x : α, ∃ n, x ≤ f n) : FundamentalSystem (WithTop α)
-  | some x => ⟨_, (s x).2.map (@PrincipalSeg.withTopCoe α _)⟩
-  | ⊤ => by
-    refine ⟨ofFun fun n ↦ f n, WithTop.coe_strictMono.comp hs, @fun x ↦ ⟨fun hx ↦ ?_, ?_⟩⟩
-    · obtain ⟨x, rfl⟩ := PrincipalSeg.withTopCoe.mem_range_of_rel_top hx
-      obtain ⟨n, hn⟩ := hl x
-      exact ⟨_, mem_ofFun n, WithTop.coe_le_coe.2 hn⟩
-    · simp_rw [mem_ofFun_iff, Set.mem_range, exists_exists_eq_and, forall_exists_index]
-      exact fun n hn ↦ hn.trans_lt (WithTop.coe_lt_top _)
+def FundamentalSystem.withTop [FundamentalSystem α] (f : ℕ → α) (hs : StrictMono f)
+    (hl : ∀ x : α, ∃ n, x ≤ f n) : FundamentalSystem (WithTop α) where
+  fundamentalSeq x := match x with
+    | some x => (fundamentalSeq x).map some
+    | ⊤ => ofFun (some ∘ f)
+  isFundamental_fundamentalSeq x := match x with
+    | some x => by
+      let g : α ≤i WithTop α := @PrincipalSeg.withTopCoe α _
+      exact (isFundamental_fundamentalSeq x).map g
+    | ⊤ => by
+      refine ⟨WithTop.coe_strictMono.comp hs, ⟨fun hx ↦ ?_, ?_⟩⟩
+      · obtain ⟨x, rfl⟩ := PrincipalSeg.withTopCoe.mem_range_of_rel_top hx
+        obtain ⟨n, hn⟩ := hl x
+        exact ⟨_, mem_ofFun n, WithTop.coe_le_coe.2 hn⟩
+      · simp_rw [mem_ofFun_iff, Set.mem_range, exists_exists_eq_and, forall_exists_index]
+        exact fun n hn ↦ hn.trans_lt (WithTop.coe_lt_top _)
 
 /-! ### Fast growing hierarchy -/
 
 /-- An auxiliary definition for `slowGrowing` and `fastGrowing`. The function `g` describes what
 happens at the successor step. -/
-private def growingAux (s : FundamentalSystem α) [WellFoundedLT α]
-    (x : α) (g : (ℕ → ℕ) → ℕ → ℕ) (n : ℕ) : ℕ :=
-  match s x with
+private def growingWith [FundamentalSystem α] [WellFoundedLT α] (x : α) (g : (ℕ → ℕ) → ℕ → ℕ)
+    (n : ℕ) : ℕ :=
+  have s : {s // IsFundamental s x} := ⟨_, isFundamental_fundamentalSeq x⟩
+  match s with
   | ⟨Sum.inl none, _⟩ => n + 1
-  | ⟨Sum.inl (some y), h⟩ => have := h.lt (mem_singleton y); g (growingAux s y g) n
-  | ⟨Sum.inr f, h⟩ => have := h.lt (mem_ofFun n); growingAux s (f n) g n
+  | ⟨Sum.inl (some y), h⟩ => have := h.lt (mem_singleton y); g (growingWith y g) n
+  | ⟨Sum.inr f, h⟩ => have := h.lt (mem_ofFun n); growingWith (f n) g n
 termination_by wellFounded_lt.wrap x
 
-variable [WellFoundedLT α]
+variable [WellFoundedLT α] [FundamentalSystem α]
 
-private theorem growingAux_bot [OrderBot α] (s : FundamentalSystem α)
-    (g : (ℕ → ℕ) → ℕ → ℕ) : growingAux s ⊥ g = Nat.succ := by
-  ext n
-  rw [growingAux, fundamentalSystem_bot s]
+private theorem growingWith_bot [OrderBot α] (g : (ℕ → ℕ) → ℕ → ℕ) (n : ℕ) :
+    growingWith (⊥ : α) g n = n + 1 := by
+  unfold growingWith
+  simp_rw [fundamentalSeq_bot]
 
-private theorem growingAux_succ [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α) (x : α)
-    (g : (ℕ → ℕ) → ℕ → ℕ) (n : ℕ) : growingAux s (succ x) g n = g (growingAux s x g) n := by
-  rw [growingAux, fundamentalSystem_succ s]
+private theorem growingWith_succ [SuccOrder α] [NoMaxOrder α] (x : α) (g : (ℕ → ℕ) → ℕ → ℕ) :
+    growingWith (succ x) g n = g (growingWith x g) n := by
+  unfold growingWith
+  simp_rw [fundamentalSeq_succ]
 
-private theorem growingAux_limit (s : FundamentalSystem α) {x : α} {f : ℕ → α} (h : s x = ofFun f)
-    (g : (ℕ → ℕ) → ℕ → ℕ) (n : ℕ) : growingAux s x g n = growingAux s (f n) g n := by
-  have : s x = ⟨ofFun f, h ▸ (s x).2⟩ := Subtype.eq h
-  rw [growingAux, this]
+private theorem growingWith_limit {x : α} {f : ℕ → α} (h : fundamentalSeq x = ofFun f)
+    (g : (ℕ → ℕ) → ℕ → ℕ) (n : ℕ) : growingWith x g n = growingWith (f n) g n := by
+  rw [growingWith]
+  simp_rw [h]
   rfl
 
 /-- The slow growing hierarchy, given a fundamental sequence system `s`, is defined as follows:
@@ -404,26 +467,25 @@ private theorem growingAux_limit (s : FundamentalSystem α) {x : α} {f : ℕ �
 * `slowGrowing s x n = slowGrowing s (f n) n`, where `f` is the fundamental sequence converging to
   the limit `x`.
 -/
-def slowGrowing (s : FundamentalSystem α) (x : α) : ℕ → ℕ :=
-  growingAux s x fun f n ↦ f n + 1
+def slowGrowing (x : α) : ℕ → ℕ :=
+  growingWith x fun f n ↦ f n + 1
+
+theorem slowGrowing_bot_apply [OrderBot α] (n : ℕ) :
+    slowGrowing (⊥ : α) n = n + 1 :=
+  growingWith_bot ..
 
 @[simp]
-theorem slowGrowing_bot [OrderBot α] (s : FundamentalSystem α) :
-    slowGrowing s ⊥ = Nat.succ :=
-  growingAux_bot ..
-
-theorem slowGrowing_bot_apply [OrderBot α] (s : FundamentalSystem α) (n : ℕ) :
-    slowGrowing s ⊥ n = n + 1 := by
-  rw [slowGrowing_bot]
+theorem slowGrowing_bot [OrderBot α] : slowGrowing (⊥ : α) = Nat.succ :=
+  funext slowGrowing_bot_apply
 
 @[simp]
-theorem slowGrowing_succ [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α) (x : α) (n : ℕ) :
-    slowGrowing s (succ x) n = slowGrowing s x n + 1 :=
-  growingAux_succ ..
+theorem slowGrowing_succ [SuccOrder α] [NoMaxOrder α] (x : α) (n : ℕ) :
+    slowGrowing (succ x) n = slowGrowing x n + 1 :=
+  growingWith_succ ..
 
-theorem slowGrowing_limit (s : FundamentalSystem α) {x : α} {f : ℕ → α} (h : s x = ofFun f)
-    (n : ℕ) : slowGrowing s x n = slowGrowing s (f n) n :=
-  growingAux_limit s h ..
+theorem slowGrowing_limit {x : α} {f : ℕ → α} (h : fundamentalSeq x = ofFun f) (n : ℕ) :
+    slowGrowing x n = slowGrowing (f n) n :=
+  growingWith_limit h ..
 
 /-- The fast growing hierarchy, given a fundamental sequence system `s`, is defined as follows:
 * `fastGrowing s ⊥ n = n + 1`
@@ -431,46 +493,44 @@ theorem slowGrowing_limit (s : FundamentalSystem α) {x : α} {f : ℕ → α} (
 * `fastGrowing s x n = fastGrowing s (f n) n`, where `f` is the fundamental sequence converging to
   the limit `x`.
 -/
-def fastGrowing (s : FundamentalSystem α) [WellFoundedLT α] (x : α) : ℕ → ℕ :=
-  growingAux s x fun f n ↦ f^[n] n
+def fastGrowing (x : α) : ℕ → ℕ :=
+  growingWith x fun f n ↦ f^[n] n
+
+theorem fastGrowing_bot_apply [OrderBot α] (n : ℕ) :
+    fastGrowing (⊥ : α) n = n + 1 :=
+  growingWith_bot ..
 
 @[simp]
-theorem fastGrowing_bot [OrderBot α] (s : FundamentalSystem α) :
-    fastGrowing s ⊥ = Nat.succ :=
-  growingAux_bot ..
+theorem fastGrowing_bot [OrderBot α] : fastGrowing (⊥ : α) = Nat.succ :=
+  funext fastGrowing_bot_apply
 
-theorem fastGrowing_bot_apply [OrderBot α] (s : FundamentalSystem α) (n : ℕ) :
-    fastGrowing s ⊥ n = n + 1 := by
-  rw [fastGrowing_bot]
+theorem fastGrowing_succ_apply [SuccOrder α] [NoMaxOrder α] (x : α) (n : ℕ) :
+    fastGrowing (succ x) n = (fastGrowing x)^[n] n :=
+  growingWith_succ ..
 
 @[simp]
-theorem fastGrowing_succ [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α) (x : α) :
-    fastGrowing s (succ x) = fun n ↦ (fastGrowing s x)^[n] n := by
-  ext n
-  exact growingAux_succ ..
+theorem fastGrowing_succ [SuccOrder α] [NoMaxOrder α] (x : α) :
+    fastGrowing (succ x) = fun n ↦ (fastGrowing x)^[n] n :=
+  funext (fastGrowing_succ_apply x)
 
-theorem fastGrowing_succ_apply [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α) (x : α)
-    (n : ℕ) : fastGrowing s (succ x) n = (fastGrowing s x)^[n] n := by
-  rw [fastGrowing_succ]
+theorem fastGrowing_limit {x : α} {f : ℕ → α} (h : fundamentalSeq x = ofFun f)
+    (n : ℕ) : fastGrowing x n = fastGrowing (f n) n :=
+  growingWith_limit h ..
 
-theorem fastGrowing_limit (s : FundamentalSystem α) {x : α} {f : ℕ → α} (h : s x = ofFun f)
-    (n : ℕ) : fastGrowing s x n = fastGrowing s (f n) n :=
-  growingAux_limit s h ..
-
-theorem fastGrowing_one [OrderBot α] [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α) :
-    fastGrowing s (succ ⊥) = fun n ↦ 2 * n := by
+theorem fastGrowing_one [OrderBot α] [SuccOrder α] [NoMaxOrder α] :
+    fastGrowing (succ (⊥ : α)) = fun n ↦ 2 * n := by
   simp [Nat.succ_iterate, two_mul]
 
-theorem fastGrowing_one_apply [OrderBot α] [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α)
-    (n : ℕ) : fastGrowing s (succ ⊥) n = 2 * n :=
-  congr_fun (fastGrowing_one s) n
+theorem fastGrowing_one_apply [OrderBot α] [SuccOrder α] [NoMaxOrder α] (n : ℕ) :
+    fastGrowing (succ (⊥ : α)) n = 2 * n :=
+  congr_fun fastGrowing_one n
 
-theorem fastGrowing_two [OrderBot α] [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α) :
-    fastGrowing s (succ (succ ⊥)) = fun n ↦ 2 ^ n * n := by
+theorem fastGrowing_two [OrderBot α] [SuccOrder α] [NoMaxOrder α] :
+    fastGrowing (succ (succ (⊥ : α))) = fun n ↦ 2 ^ n * n := by
   simp [Nat.succ_iterate, ← two_mul]
 
-theorem fastGrowing_two_apply [OrderBot α] [SuccOrder α] [NoMaxOrder α] (s : FundamentalSystem α)
-    (n : ℕ) : fastGrowing s (succ (succ ⊥)) n = 2 ^ n * n :=
-  congr_fun (fastGrowing_two s) n
+theorem fastGrowing_two_apply [OrderBot α] [SuccOrder α] [NoMaxOrder α] (n : ℕ) :
+    fastGrowing (succ (succ (⊥ : α))) n = 2 ^ n * n :=
+  congr_fun fastGrowing_two n
 
 end Ordinal
