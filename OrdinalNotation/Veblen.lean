@@ -7,6 +7,7 @@ import Mathlib.SetTheory.Ordinal.Principal
 import Mathlib.Tactic.Linarith
 import Mathlib.Data.PNat.Basic
 import Mathlib.Data.Prod.Lex
+import OrdinalNotation.ForMathlib
 
 open Ordinal Order Ordering
 
@@ -19,9 +20,6 @@ Comparison is performed so that `veblen s₁ a₁ < veblen s₂ a₂` iff one of
 * `s₁ < s₂` and `a₁ < veblen s₂ a₂`
 * `s₁ = s₂` and `a₁ < a₂`
 * `s₂ < s₁` and `veblen s₁ a₁ < a₂`
-
-If two terms have the same ordinal value, we disambiguate by their size, so that e.g.
-`ε₀ < vadd 0 ε₀ 1 0`. This (hopefully?) gives us a `LinearOrder` instance on `PreVeblen`.
 
 We say that `veblen s a * n + b` is a normal form `PreVeblen.NF` whenever `a, b < veblen s a` and
 all of `s`, `a`, and `b` are normal forms. `Veblen` is the subtype of normal forms. -/
@@ -40,16 +38,19 @@ namespace PreVeblen
 
 variable {s a b : PreVeblen} {n : ℕ+}
 
+theorem one_le_sizeOf : ∀ x : PreVeblen, 1 ≤ sizeOf x
+  | zero => le_rfl
+  | vadd _ _ _ _ => by
+    change 1 ≤ 1 + _ + _ + _
+    simp_rw [add_assoc]
+    exact Nat.le_add_right _ _
+
 /-- The ordinal `0` is represented as `zero`. -/
 instance : Zero PreVeblen :=
   ⟨zero⟩
 
 @[simp]
 theorem zero_def : zero = 0 :=
-  rfl
-
-@[simp]
-theorem sizeOf_zero : sizeOf (0 : PreVeblen) = 1 :=
   rfl
 
 instance : Inhabited PreVeblen :=
@@ -79,39 +80,67 @@ def epsilon0 : PreVeblen :=
 
 -- TODO: repr
 
-theorem one_le_sizeOf : ∀ x : PreVeblen, 1 ≤ sizeOf x
-  | zero => le_rfl
-  | vadd _ _ _ _ => by
-    change 1 ≤ 1 + _ + _ + _
-    simp_rw [add_assoc]
-    exact Nat.le_add_right _ _
+/-! ### Ordering -/
 
-instance [LT α] [WellFoundedLT α] [LT β] [WellFoundedLT β] :
-    WellFoundedRelation (Lex (α × β)) :=
-  ⟨(· < ·), WellFounded.prod_lex wellFounded_lt wellFounded_lt⟩
-
-theorem Prod.Lex.lt_of_le_of_lt {α β} [PartialOrder α] [LT β] {a b : α} {c d : β}
-    (h₁ : a ≤ b) (h₂ : c < d) : toLex (a, c) < toLex (b, d) := by
-  obtain h₁ | rfl := h₁.lt_or_eq
-  · exact Prod.Lex.left _ _ h₁
-  · exact Prod.Lex.right _ h₂
-
+@[semireducible]
 def cmp : PreVeblen → PreVeblen → Ordering
   | 0, 0 => eq
   | 0, vadd _ _ _ _ => lt
   | vadd _ _ _ _, 0 => gt
   | vadd s₁ a₁ n₁ b₁, vadd s₂ a₂ n₂ b₂ =>
+    have : toLex (sizeOf (vadd s₁ a₁ 1 0), sizeOf a₂) <
+        toLex (sizeOf (vadd s₁ a₁ n₁ b₁), sizeOf (vadd s₂ a₂ n₂ b₂)) := by
+      apply Prod.Lex.lt_of_le_of_lt
+      · simpa using one_le_sizeOf _
+      · decreasing_tactic
     let veblenCmp : Ordering := match cmp s₁ s₂ with
-      | lt => if cmp a₁ (vadd s₂ a₂ 1 0) = gt then gt else lt
+      | lt => cmp a₁ (vadd s₂ a₂ 1 0)
       | eq => cmp a₁ a₂
-      | gt => if cmp (vadd s₁ a₁ 1 0) a₂ = lt then lt else gt
+      | gt => (cmp (vadd s₁ a₁ 1 0) a₂).swap
     veblenCmp.then ((_root_.cmp n₁ n₂).then (cmp b₁ b₂))
 termination_by x y => toLex (sizeOf x, sizeOf y)
-decreasing_by
-on_goal 4 => {
-  apply Prod.Lex.lt_of_le_of_lt
-  · simpa using one_le_sizeOf _
-  · decreasing_tactic }
-all_goals decreasing_tactic
+decreasing_by all_goals first | assumption | decreasing_tactic
+
+instance : LT PreVeblen where
+  lt x y := x.cmp y = lt
+
+theorem lt_def (x y : PreVeblen) : x < y ↔ x.cmp y = lt := Iff.rfl
+
+instance : @DecidableRel PreVeblen (· < ·) :=
+  fun _ _ ↦ inferInstanceAs (Decidable (_ = _))
+
+instance : LE PreVeblen where
+  le x y := x.cmp y ≠ gt
+
+theorem le_def (x y : PreVeblen) : x ≤ y ↔ x.cmp y ≠ gt := Iff.rfl
+
+instance : @DecidableRel PreVeblen (· ≤ ·) :=
+  fun _ _ ↦ inferInstanceAs (Decidable (_ ≠ _))
+
+@[simp]
+protected theorem zero_le (x : PreVeblen) : 0 ≤ x := by
+  cases x <;> simp [le_def, PreVeblen.cmp.eq_def]
+
+instance : OrderBot PreVeblen where
+  bot := 0
+  bot_le := PreVeblen.zero_le
+
+@[simp]
+protected theorem bot_eq_zero : (⊥ : PreVeblen) = 0 :=
+  rfl
+
+theorem vadd_pos (s a n b) : 0 < vadd s a n b := by
+  rw [lt_def, PreVeblen.cmp.eq_def]
+
+@[simp]
+protected theorem not_lt_zero (x : PreVeblen) : ¬ x < 0 := by
+  cases x <;> simp [lt_def, PreVeblen.cmp.eq_def]
+
+@[simp]
+protected theorem le_zero {x : PreVeblen} : x ≤ 0 ↔ x = 0 := by
+  cases x <;> simp [le_def, PreVeblen.cmp.eq_def]
+
+protected theorem zero_lt_one : (0 : PreVeblen) < 1 := by
+  decide
 
 end PreVeblen

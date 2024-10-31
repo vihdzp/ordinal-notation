@@ -1,5 +1,6 @@
 import Mathlib.Data.PNat.Basic
 import Mathlib.SetTheory.Ordinal.Exponential
+import Mathlib.Data.Prod.Lex
 
 open Order
 
@@ -109,3 +110,13 @@ def PrincipalSeg.withTopCoe [Preorder α] : α <i WithTop α := by
   change x ∈ Set.range WithTop.some ↔ _
   rw [WithTop.range_coe]
   rfl
+
+instance [LT α] [WellFoundedLT α] [LT β] [WellFoundedLT β] :
+    WellFoundedRelation (Lex (α × β)) :=
+  ⟨(· < ·), WellFounded.prod_lex wellFounded_lt wellFounded_lt⟩
+
+theorem Prod.Lex.lt_of_le_of_lt {α β} [PartialOrder α] [LT β] {a b : α} {c d : β}
+    (h₁ : a ≤ b) (h₂ : c < d) : toLex (a, c) < toLex (b, d) := by
+  obtain h₁ | rfl := h₁.lt_or_eq
+  · exact Prod.Lex.left _ _ h₁
+  · exact Prod.Lex.right _ h₂
