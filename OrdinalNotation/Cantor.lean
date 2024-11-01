@@ -1141,8 +1141,6 @@ instance : SuccOrder Cantor := by
 instance : SuccAddOrder Cantor :=
   ⟨fun _ ↦ rfl⟩
 
--- TODO: decidable instance for `IsLimit`
-
 end Cantor
 
 namespace PreCantor
