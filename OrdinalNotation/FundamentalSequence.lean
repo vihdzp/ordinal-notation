@@ -18,6 +18,8 @@ def Sequence (α : Type u) : Type u :=
 
 namespace Sequence
 
+variable {s : Sequence α} {x y : α} {f : ℕ → α}
+
 /-- The empty sequence, whose limit is the bottom element. -/
 instance : EmptyCollection (Sequence α) :=
   ⟨Sum.inl none⟩
@@ -38,12 +40,11 @@ theorem singleton_ne_empty (x : α) : ({x} : Sequence α) ≠ ∅ := by
   change Sum.inl _ ≠ Sum.inl _
   simp
 
-@[simp]
-theorem ofFun_ne_empty (f : ℕ → α) : ofFun f ≠ ∅ :=
-  Sum.inr_ne_inl
-
+@[simp] theorem ofFun_ne_empty (f : ℕ → α) : ofFun f ≠ ∅ := Sum.inr_ne_inl
+@[simp] theorem singleton_ne_ofFun (x : α) (f : ℕ → α) : {x} ≠ ofFun f := Sum.inl_ne_inr
 @[simp] theorem empty_ne_singleton (x : α) : ∅ ≠ ({x} : Sequence α) := (singleton_ne_empty x).symm
 @[simp] theorem empty_ne_ofFun (f : ℕ → α) : ∅ ≠ ofFun f := (ofFun_ne_empty f).symm
+@[simp] theorem ofFun_ne_singleton (x : α) (f : ℕ → α) : ofFun f ≠ {x} := Sum.inr_ne_inl
 
 @[simp] theorem sum_inl_none_def : Sum.inl none = (∅ : Sequence α) := rfl
 @[simp] theorem sum_inl_some_def (x : α) : Sum.inl (some x) = ({x} : Sequence α) := rfl
@@ -56,6 +57,26 @@ def recOn {p : Sequence α → Sort*} (s : Sequence α) (empty : p ∅) (singlet
   | Sum.inl none => empty
   | Sum.inl (some x) => singleton x
   | Sum.inr f => ofFun f
+
+/-- The length of a sequence as an element of `WithTop ℕ`. This can be used as a proxy for asking
+what type of sequence we're dealing with.-/
+def length : Sequence α → WithTop ℕ
+  | Sum.inl none => 0
+  | Sum.inl (some _) => 1
+  | Sum.inr _ => ⊤
+
+@[simp] theorem length_empty : (∅ : Sequence α).length = 0 := rfl
+@[simp] theorem length_singleton (x : α) : ({x} : Sequence α).length = 1 := rfl
+@[simp] theorem length_ofFun (f : ℕ → α) : (ofFun f).length = ⊤ := rfl
+
+@[simp] theorem length_eq_zero_iff : s.length = 0 ↔ s = ∅ := by
+  apply s.recOn <;> simp
+
+theorem length_eq_one_iff : s.length = 1 ↔ ∃ x, s = {x} := by
+  apply s.recOn <;> simp
+
+theorem length_eq_top_iff : s.length = ⊤ ↔ ∃ f, s = ofFun f := by
+  apply s.recOn <;> simp
 
 /-- The range of a sequence is the set of values it attains -/
 def range : Sequence α → Set α
@@ -75,12 +96,12 @@ instance : Membership α (Sequence α) :=
   ⟨mem⟩
 
 @[simp] theorem not_mem_empty (x : α) : x ∉ (∅ : Sequence α) := id
-@[simp] theorem mem_singleton_iff {x y : α} : x ∈ ({y} : Sequence α) ↔ x = y := Iff.rfl
-@[simp] theorem mem_ofFun_iff {x : α} {f : ℕ → α} : x ∈ ofFun f ↔ x ∈ Set.range f := Iff.rfl
-@[simp] theorem mem_range_iff {s : Sequence α} {x : α} : x ∈ s.range ↔ x ∈ s := Iff.rfl
+@[simp] theorem mem_singleton_iff : x ∈ ({y} : Sequence α) ↔ x = y := Iff.rfl
+@[simp] theorem mem_ofFun_iff : x ∈ ofFun f ↔ x ∈ Set.range f := Iff.rfl
+@[simp] theorem mem_range_iff : x ∈ s.range ↔ x ∈ s := Iff.rfl
 
 theorem mem_singleton (x : α) : x ∈ ({x} : Sequence α) := mem_singleton_iff.2 rfl
-theorem mem_ofFun {f : ℕ → α} (n : ℕ) : f n ∈ ofFun f := ⟨n, rfl⟩
+theorem mem_ofFun (n : ℕ) : f n ∈ ofFun f := ⟨n, rfl⟩
 
 /-- Maps a sequence through a function -/
 def map (s : Sequence α) (g : α → β) : Sequence β :=
@@ -94,13 +115,17 @@ def map (s : Sequence α) (g : α → β) : Sequence β :=
 @[simp] theorem map_ofFun (f : ℕ → α) (g : α → β) : map (ofFun f) g = ofFun (g ∘ f) := rfl
 
 @[simp]
-theorem map_eq_empty_iff {s : Sequence α} {g : α → β} : s.map g = ∅ ↔ s = ∅ := by
+theorem map_length (s : Sequence α) (g : α → β) : (s.map g).length = s.length := by
   apply s.recOn <;> simp
 
 @[simp]
-theorem mem_map {s : Sequence α} {f : α → β} {b : β} : b ∈ s.map f ↔ ∃ a ∈ s, f a = b :=
+theorem map_eq_empty_iff : s.map g = ∅ ↔ s = ∅ := by
+  apply s.recOn <;> simp
+
+@[simp]
+theorem mem_map {b : β} {g : α → β} : b ∈ s.map g ↔ ∃ a ∈ s, g a = b :=
   match s with
-  | Sum.inl none | Sum.inr g => by simp
+  | Sum.inl none | Sum.inr f => by simp
   | Sum.inl (some x) => by simp [eq_comm]
 
 /-- Attach to a sequence the proof that it contains all its elements -/
@@ -112,6 +137,10 @@ def attach : (s : Sequence α) → Sequence {a : α // a ∈ s}
 @[simp] theorem attach_empty : (∅ : Sequence α).attach = ∅ := rfl
 @[simp] theorem attach_singleton (x : α) : ({x} : Sequence α).attach = {⟨x, rfl⟩} := rfl
 @[simp] theorem attach_ofFun (f : ℕ → α) : (ofFun f).attach = ofFun fun n ↦ ⟨f n, n, rfl⟩ := rfl
+
+@[simp]
+theorem attach_length (s : Sequence α) : s.attach.length = s.length := by
+  apply s.recOn <;> simp
 
 @[simp]
 theorem attach_eq_empty_iff {s : Sequence α} : s.attach = ∅ ↔ s = ∅ := by
@@ -145,33 +174,50 @@ theorem pmap_ofFun (g : ℕ → α) (f : ∀ x ∈ ofFun g, β) :
   rfl
 
 @[simp]
+theorem pmap_length (s : Sequence α) (f : ∀ x ∈ s, β) : (pmap s f).length = s.length := by
+  simp [pmap]
+
+@[simp]
 theorem pmap_eq_empty_iff {s : Sequence α} : {f : ∀ x ∈ s, β} → pmap _ f = ∅ ↔ s = ∅ := by
   apply s.recOn <;> simp
 
 @[simp]
-theorem mem_pmap {s : Sequence α} {f : ∀ x ∈ s, β} :
+theorem mem_pmap {b : β} {f : ∀ x ∈ s, β} :
     b ∈ s.pmap f ↔ ∃ (a : α) (h : a ∈ s), f a h = b := by
   simp [pmap]
 
-/-- `s[n]` returns the `n`-th element of the fundamental sequence `s`. By convention, we take
-`∅[n] = ⊥` and `{x}[n] = x`. -/
-instance [LE α] [OrderBot α] : GetElem (Sequence α) ℕ α fun _ _ ↦ True
+/-- `s.add x` is the map of `s` through `x + ·`.
+
+Under reasonable typeclass assumptions for an ordinal notation, `s.add x` will be a fundamental
+sequence for `x + y` whenever `s` is a fundamental sequence for `y`. -/
+def add [Add α] (s : Sequence α) (x : α) : Sequence α :=
+  s.map (x + ·)
+
+@[simp] theorem add_empty [Add α] (x : α) : (∅ : Sequence α).add x = ∅ := rfl
+@[simp] theorem add_singleton [Add α] (x y : α) : ({x} : Sequence α).add y = {y + x} := rfl
+@[simp] theorem add_ofFun [Add α] (f : ℕ → α) (x : α) :
+    (ofFun f).add x = ofFun fun y ↦ x + f y := rfl
+
+@[simp]
+theorem add_length [Add α] (s : Sequence α) (x : α) : (s.add x).length = s.length :=
+  map_length _ _
+
+/-- `s[n]` returns the `n`-th element of the fundamental sequence `s`, as an element of `WithBot α`.
+By convention, we take `∅[n] = ⊥` and `{x}[n] = x`. This ensures various convenient properties such
+as `getElem` being an injection, or `(s.add x)[n] = x + s[n]` -/
+instance : GetElem (Sequence α) ℕ (WithBot α) fun _ _ ↦ True
   where getElem s n _ := match s with
     | Sum.inl none => ⊥
     | Sum.inl (some x) => x
     | Sum.inr f => f n
 
-@[simp]
-theorem getElem_empty [LE α] [OrderBot α] (n : ℕ) : (∅ : Sequence α)[n] = ⊥ :=
-  rfl
+@[simp] theorem getElem_empty (n : ℕ) : (∅ : Sequence α)[n] = ⊥ := rfl
+@[simp] theorem getElem_singleton (x : α) (n : ℕ) : ({x} : Sequence α)[n] = x := rfl
+@[simp] theorem getElem_ofFun (f : ℕ → α) (n : ℕ) : (ofFun f)[n] = f n := rfl
 
 @[simp]
-theorem getElem_singleton [LE α] [OrderBot α] (x : α) (n : ℕ) : ({x} : Sequence α)[n] = x :=
-  rfl
-
-@[simp]
-theorem getElem_ofFun [LE α] [OrderBot α] (f : ℕ → α) (n : ℕ) : (ofFun f)[n] = f n :=
-  rfl
+theorem getElem_add [Add α] (s : Sequence α) (x : α) (n : ℕ) : (s.add x)[n] = x + s[n] := by
+  apply s.recOn <;> simp
 
 /-- Builds a list with the first `n` elements of the sequence. This can be used to print the
 sequence. -/
@@ -195,15 +241,15 @@ protected def StrictMono : Sequence α → Prop
 
 @[simp] theorem strictMono_empty : (∅ : Sequence α).StrictMono := ⟨⟩
 @[simp] theorem strictMono_singleton (x : α) : ({x} : Sequence α).StrictMono := ⟨⟩
-@[simp] theorem strictMono_ofFun {f : ℕ → α} : (ofFun f).StrictMono ↔ StrictMono f := Iff.rfl
+@[simp] theorem strictMono_ofFun : (ofFun f).StrictMono ↔ StrictMono f := Iff.rfl
 
-theorem StrictMono.map {s : Sequence α} (hs : s.StrictMono) {g : α → β} (h : StrictMono g) :
+theorem StrictMono.map (hs : s.StrictMono) {g : α → β} (h : StrictMono g) :
     (s.map g).StrictMono :=
   match s with
   | Sum.inl none | Sum.inl (some _) => ⟨⟩
   | Sum.inr _ => h.comp hs
 
-theorem StrictMono.attach {s : Sequence α} (hs : s.StrictMono) : s.attach.StrictMono :=
+theorem StrictMono.attach (hs : s.StrictMono) : s.attach.StrictMono :=
   match s with
   | Sum.inl none | Sum.inl (some _) => ⟨⟩
   | Sum.inr _ => fun _ _ h ↦ hs h
@@ -221,15 +267,15 @@ A length 0 sequence converges at a minimal element. A length 1 sequence `x` conv
 def IsLimit (s : Sequence α) (y : α) : Prop :=
   ∀ {x}, x < y ↔ ∃ z ∈ s, x ≤ z
 
-theorem IsLimit.exists_le_of_lt {s : Sequence α} {x y : α} (hl : IsLimit s y) (h : x < y) :
+theorem IsLimit.exists_le_of_lt (hl : IsLimit s y) (h : x < y) :
     ∃ z ∈ s, x ≤ z :=
   hl.1 h
 
-theorem IsLimit.lt {s : Sequence α} {x y : α} (hl : IsLimit s y) (h : x ∈ s) : x < y :=
+theorem IsLimit.lt (hl : IsLimit s y) (h : x ∈ s) : x < y :=
   hl.2 ⟨x, h, le_rfl⟩
 
 @[simp]
-theorem isLimit_empty {x : α} : IsLimit ∅ x ↔ IsMin x := by
+theorem isLimit_empty : IsLimit ∅ x ↔ IsMin x := by
   simp [IsLimit, isMin_iff_forall_not_lt]
 
 alias ⟨IsLimit.isMin, isLimit_of_isMin⟩ := isLimit_empty
@@ -238,22 +284,22 @@ theorem isLimit_bot [OrderBot α] : IsLimit ∅ (⊥ : α) :=
   isLimit_of_isMin isMin_bot
 
 @[simp]
-theorem isLimit_singleton {x y : α} : IsLimit {x} y ↔ x ⋖ y := by
+theorem isLimit_singleton : IsLimit {x} y ↔ x ⋖ y := by
   simp [IsLimit, covBy_iff_lt_iff_le]
 
 alias ⟨IsLimit.covBy, isLimit_of_covBy⟩ := isLimit_singleton
 
-theorem isLimit_succ_of_not_isMax [SuccOrder α] {x : α} (h : ¬ IsMax x) : IsLimit {x} (succ x) :=
+theorem isLimit_succ_of_not_isMax [SuccOrder α] (h : ¬ IsMax x) : IsLimit {x} (succ x) :=
   isLimit_of_covBy (covBy_succ_of_not_isMax h)
 
 theorem isLimit_succ [SuccOrder α] [NoMaxOrder α] (x : α) : IsLimit {x} (succ x) :=
   isLimit_succ_of_not_isMax (not_isMax x)
 
-theorem isLimit_ofFun {f : ℕ → α} : IsLimit (ofFun f) y ↔ ∀ {x}, x < y ↔ ∃ n, x ≤ f n := by
+theorem isLimit_ofFun : IsLimit (ofFun f) y ↔ ∀ {x}, x < y ↔ ∃ n, x ≤ f n := by
   simp [IsLimit]
 
 /-- The only sequence converging to `⊥` is `∅` -/
-theorem IsLimit.eq_empty [OrderBot α] {s : Sequence α} : IsLimit s ⊥ → s = ∅ := by
+theorem IsLimit.eq_empty [OrderBot α] : IsLimit s ⊥ → s = ∅ := by
   apply s.recOn
   · simp
   · intro x h
@@ -262,13 +308,12 @@ theorem IsLimit.eq_empty [OrderBot α] {s : Sequence α} : IsLimit s ⊥ → s =
     cases (h.lt (mem_ofFun 0)).ne_bot rfl
 
 @[simp]
-theorem IsLimit.bot_iff_eq_empty [OrderBot α] {s : Sequence α} : IsLimit s ⊥ ↔ s = ∅ := by
+theorem IsLimit.bot_iff_eq_empty [OrderBot α] : IsLimit s ⊥ ↔ s = ∅ := by
   use IsLimit.eq_empty
   rintro rfl
   exact isLimit_bot
 
-theorem IsLimit.map {s : Sequence α} {x : α} (h : IsLimit s x) (f : α ≤i β) :
-    IsLimit (s.map f) (f x) := by
+theorem IsLimit.map (h : IsLimit s x) (f : α ≤i β) : IsLimit (s.map f) (f x) := by
   intro y
   simp_rw [mem_map, exists_exists_and_eq_and]
   refine ⟨fun hy ↦ ?_, ?_⟩
@@ -277,6 +322,16 @@ theorem IsLimit.map {s : Sequence α} {x : α} (h : IsLimit s x) (f : α ≤i β
     exact ⟨z, hz, f.le_iff_le.2 hyz⟩
   · rintro ⟨z, hz, hyz⟩
     exact hyz.trans_lt (f.lt_iff_lt.2 <| h.lt hz)
+
+private theorem isLimit_congr' (hx : IsLimit s x) (hy : IsLimit s y) :
+    x ≤ y := by
+  apply le_of_not_lt fun h ↦ ?_
+  obtain ⟨z, hz, hyz⟩ := hx.1 h
+  exact hyz.not_lt (hy.lt hz)
+
+/-- A sequence has at most one limit. -/
+theorem isLimit_congr (hx : IsLimit s x) (hy : IsLimit s y) : x = y :=
+  (isLimit_congr' hx hy).antisymm (isLimit_congr' hy hx)
 
 /-- A fundamental sequence for `x` is a strictly monotonic sequence with limit `x`. -/
 @[mk_iff]
@@ -287,7 +342,7 @@ structure IsFundamental (s : Sequence α) (x : α) : Prop where
   isLimit : IsLimit s x
 
 @[simp]
-theorem isFundamental_empty {x : α} : IsFundamental ∅ x ↔ IsMin x := by
+theorem isFundamental_empty : IsFundamental ∅ x ↔ IsMin x := by
   simp [isFundamental_iff]
 
 alias ⟨IsFundamental.isMin, isFundamental_of_isMin⟩ := isFundamental_empty
@@ -296,41 +351,53 @@ theorem isFundamental_bot [OrderBot α] : IsFundamental ∅ (⊥ : α) :=
   isFundamental_of_isMin isMin_bot
 
 @[simp]
-theorem isFundamental_singleton {x y : α} : IsFundamental {x} y ↔ x ⋖ y := by
+theorem isFundamental_singleton : IsFundamental {x} y ↔ x ⋖ y := by
   simp [isFundamental_iff, covBy_iff_lt_iff_le]
 
 alias ⟨IsFundamental.covBy, isFundamental_of_covBy⟩ := isFundamental_singleton
 
-theorem isFundamental_succ_of_not_isMax [SuccOrder α] {x : α} (h : ¬ IsMax x) :
+theorem isFundamental_succ_of_not_isMax [SuccOrder α] (h : ¬ IsMax x) :
     IsFundamental {x} (succ x) :=
   isFundamental_of_covBy (covBy_succ_of_not_isMax h)
 
 theorem isFundamental_succ [SuccOrder α] [NoMaxOrder α] (x : α) : IsFundamental {x} (succ x) :=
   isFundamental_succ_of_not_isMax (not_isMax x)
 
-theorem IsFundamental.lt {s : Sequence α} {x y : α} (hx : x ∈ s) (h : IsFundamental s y) : x < y :=
+theorem IsFundamental.lt (hx : x ∈ s) (h : IsFundamental s y) : x < y :=
   IsLimit.lt h.isLimit hx
 
 /-- The only fundamental sequence for `⊥` is `∅` -/
-theorem IsFundamental.eq_empty [OrderBot α] {s : Sequence α} : IsFundamental s ⊥ → s = ∅ :=
+theorem IsFundamental.eq_empty [OrderBot α] : IsFundamental s ⊥ → s = ∅ :=
   fun h ↦ IsLimit.eq_empty h.isLimit
 
 @[simp]
-theorem IsFundamental.bot_iff_eq_empty [OrderBot α] {s : Sequence α} :
-    IsFundamental s ⊥ ↔ s = ∅ := by
+theorem IsFundamental.bot_iff_eq_empty [OrderBot α] : IsFundamental s ⊥ ↔ s = ∅ := by
   use IsFundamental.eq_empty
   rintro rfl
   exact isFundamental_bot
 
-theorem IsFundamental.isSuccLimit {f : ℕ → α} {x : α} (h : IsFundamental (ofFun f) x) :
-    IsSuccLimit x := by
+theorem IsFundamental.isSuccLimit (h : IsFundamental (ofFun f) x) : IsSuccLimit x := by
   use not_isMin_of_lt (h.lt (mem_ofFun 0))
   intro y hx
   obtain ⟨z, ⟨n, rfl⟩, hy⟩ := h.2.1 hx.lt
   exact (hx.ge_of_gt <| hy.trans_lt (h.1 (Nat.lt_succ_self _))).not_lt (h.lt (mem_ofFun _))
 
+theorem IsFundamental.isSuccLimit_iff : IsFundamental s x →
+    (IsSuccLimit x ↔ s.length = ⊤) := by
+  apply s.recOn
+  · simpa using fun hx h ↦ h.1 hx
+  · simpa using fun y hy h ↦ h.2 y hy
+  · simpa using fun f h ↦ h.isSuccLimit
+
+theorem IsFundamental.isSuccPrelimit_iff : IsFundamental s x →
+    (IsSuccPrelimit x ↔ s.length ≠ 1) := by
+  apply s.recOn
+  · simpa using fun h ↦ h.isSuccPrelimit
+  · simpa using fun y hy h ↦ h y hy
+  · simpa using fun f h ↦ h.isSuccLimit.isSuccPrelimit
+
 /-- The only fundamental sequence for `succ x` is `{x}` -/
-theorem IsFundamental.eq_succ [SuccOrder α] [NoMaxOrder α] {s : Sequence α} :
+theorem IsFundamental.eq_succ [SuccOrder α] [NoMaxOrder α] :
     IsFundamental s (succ x) → s = {x} := by
   have : Inhabited α := ⟨x⟩
   have : Infinite α := NoMaxOrder.infinite
@@ -341,15 +408,18 @@ theorem IsFundamental.eq_succ [SuccOrder α] [NoMaxOrder α] {s : Sequence α} :
     simpa using hf.isSuccLimit
 
 @[simp]
-theorem IsFundamental.succ_iff_eq_singleton [SuccOrder α] [NoMaxOrder α] {s : Sequence α} :
+theorem IsFundamental.succ_iff_eq_singleton [SuccOrder α] [NoMaxOrder α] :
     IsFundamental s (succ x) ↔ s = {x} := by
   use IsFundamental.eq_succ
   rintro rfl
   exact isFundamental_succ x
 
-theorem IsFundamental.map {s : Sequence α} {x : α} (h : IsFundamental s x) (f : α ≤i β) :
-    IsFundamental (s.map f) (f x) :=
+theorem IsFundamental.map (h : IsFundamental s x) (f : α ≤i β) : IsFundamental (s.map f) (f x) :=
   ⟨h.1.map f.strictMono, IsLimit.map h.2 _⟩
+
+/-- A sequence is fundamental for at most one value. -/
+theorem isFundamental_congr (hx : IsFundamental s x) (hy : IsFundamental s y) : x = y :=
+  isLimit_congr hx.2 hy.2
 
 end LinearOrder
 
@@ -392,6 +462,32 @@ theorem fundamentalSeq_bot [FundamentalSystem α] [OrderBot α] :
 theorem fundamentalSeq_succ [FundamentalSystem α] [SuccOrder α] [NoMaxOrder α] (x : α) :
     fundamentalSeq (succ x) = {x} :=
   (isFundamental_fundamentalSeq _).eq_succ
+
+@[simp]
+theorem fundamentalSeq_add_one [FundamentalSystem α] [Add α] [One α] [SuccAddOrder α] [NoMaxOrder α]
+    (x : α) : fundamentalSeq (x + 1) = {x} := by
+  rw [← succ_eq_add_one]
+  exact fundamentalSeq_succ x
+
+theorem fundamentalSeq_injective [FundamentalSystem α] :
+    Function.Injective (@fundamentalSeq α _ _) := by
+  intro x y h
+  exact isFundamental_congr (isFundamental_fundamentalSeq x) (h ▸ isFundamental_fundamentalSeq y)
+
+@[simp]
+theorem fundamentalSeq_inj [FundamentalSystem α] {x y : α}  :
+    fundamentalSeq x = fundamentalSeq y ↔ x = y :=
+  fundamentalSeq_injective.eq_iff
+
+/-- Given a fundamental sequence system, one can decide if `x` is a successor limit by checking that
+the length of its fundamental sequence is `ω`. -/
+instance [FundamentalSystem α] : @DecidablePred α IsSuccLimit :=
+  fun x ↦ decidable_of_iff' _ (isFundamental_fundamentalSeq x).isSuccLimit_iff
+
+/-- Given a fundamental sequence system, one can decide if `x` is a successor pre-limit by checking
+that the length of its fundamental sequence is not 1. -/
+instance [FundamentalSystem α] : @DecidablePred α IsSuccPrelimit :=
+  fun x ↦ decidable_of_iff' _ (isFundamental_fundamentalSeq x).isSuccPrelimit_iff
 
 /-- The unique fundamental system on `ℕ`. The fast-growing hierarchy when endowed with this system
 is sometimes called the Grzegorczyk hierarchy. -/
