@@ -7,7 +7,7 @@ import Mathlib.Data.Ordering.Lemmas
 import Mathlib.Data.PNat.Basic
 import Mathlib.SetTheory.Ordinal.Principal
 import Mathlib.Tactic.NormNum
-import OrdinalNotation.ForMathlib
+import OrdinalNotation.Mathlib.Lemmas
 import OrdinalNotation.FundamentalSequence
 
 /-!
@@ -1404,7 +1404,8 @@ instance : FundamentalSystem Cantor where
   fundamentalSeq x := wainer x
   isFundamental_fundamentalSeq x := isFundamental_wainer x
 
-theorem fundamentalSeq_def (x : Cantor) : fundamentalSeq x = wainer x :=
+@[simp]
+theorem fundamentalSeq_def (x : Cantor) : wainer x = fundamentalSeq x :=
   rfl
 
 /-- Extend the Wainer hierarchy to `ε₀` by defining its fundamental sequence as

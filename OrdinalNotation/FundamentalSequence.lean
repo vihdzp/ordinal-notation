@@ -1,6 +1,6 @@
 import Mathlib.SetTheory.Ordinal.Arithmetic
 import Mathlib.Order.Interval.Set.Infinite
-import OrdinalNotation.ForMathlib
+import OrdinalNotation.Mathlib.Lemmas
 
 universe u
 
@@ -470,9 +470,9 @@ theorem fundamentalSeq_add_one [FundamentalSystem α] [Add α] [One α] [SuccAdd
   exact fundamentalSeq_succ x
 
 theorem fundamentalSeq_injective [FundamentalSystem α] :
-    Function.Injective (@fundamentalSeq α _ _) := by
-  intro x y h
-  exact isFundamental_congr (isFundamental_fundamentalSeq x) (h ▸ isFundamental_fundamentalSeq y)
+    Function.Injective (@fundamentalSeq α _ _) :=
+  fun x y h ↦ isFundamental_congr
+    (isFundamental_fundamentalSeq x) (h ▸ isFundamental_fundamentalSeq y)
 
 @[simp]
 theorem fundamentalSeq_inj [FundamentalSystem α] {x y : α}  :

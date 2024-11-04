@@ -7,7 +7,7 @@ import Mathlib.SetTheory.Ordinal.Principal
 import Mathlib.Tactic.Linarith
 import Mathlib.Data.PNat.Basic
 import Mathlib.Data.Prod.Lex
-import OrdinalNotation.ForMathlib
+import OrdinalNotation.Mathlib.Lemmas
 
 open Ordinal Order Ordering
 
