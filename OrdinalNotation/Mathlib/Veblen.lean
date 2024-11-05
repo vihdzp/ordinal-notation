@@ -3,7 +3,7 @@ Copyright (c) 2024 Violeta Hernández Palacios. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Violeta Hernández Palacios
 -/
-import Mathlib.SetTheory.Ordinal.Principal
+import OrdinalNotation.Mathlib.Card
 
 /-!
 # Veblen hierarchy
@@ -36,6 +36,30 @@ The following notation is scoped to the `Ordinal` namespace.
 noncomputable section
 
 universe u
+
+namespace Cardinal
+
+theorem max_zero_left (a : Cardinal) : max 0 a = a :=
+  max_bot_left a
+
+theorem max_zero_right (a : Cardinal) : max a 0 = a :=
+  max_bot_right a
+
+theorem mul_le_left {a b : Cardinal} (ha : ℵ₀ ≤ a) (hb : b ≤ a) : a * b ≤ a := by
+  obtain rfl | hb' := eq_or_ne b 0
+  · simp
+  · rw [mul_eq_left ha hb hb']
+
+theorem mul_le_right {a b : Cardinal} (hb : ℵ₀ ≤ b) (ha : a ≤ b) : a * b ≤ b := by
+  rw [mul_comm]
+  exact mul_le_left hb ha
+
+theorem mul_le {a b c : Cardinal} (ha : a ≤ c) (hb : b ≤ c) (hc : ℵ₀ ≤ c) : a * b ≤ c :=
+  (mul_le_max _ _).trans <| max_le (max_le ha hb) hc
+
+end Cardinal
+
+open Cardinal
 
 namespace Ordinal
 
@@ -324,6 +348,12 @@ theorem veblen_eq_veblen_iff :
     veblen a b = veblen c d ↔ a = c ∧ b = d ∨ a < c ∧ b = veblen c d ∨ c < a ∧ veblen a b = d :=
  veblenWith_eq_veblenWith_iff isNormal_omega0_opow
 
+theorem veblen_le_veblen_of_le_of_le (ha : a ≤ c) (hb : b ≤ d) : veblen a b ≤ veblen c d := by
+  rw [veblen_le_veblen_iff]
+  obtain rfl | ha := ha.eq_or_lt
+  · exact Or.inl ⟨rfl, hb⟩
+  · exact Or.inr (Or.inl ⟨ha, hb.trans (right_le_veblen _ _)⟩)
+
 /-! ### Epsilon function -/
 
 /-- The epsilon function enumerates the fixed points of `ω ^ ⬝`. -/
@@ -399,6 +429,13 @@ theorem principal_opow_epsilon (o : Ordinal) : Principal (· ^ ·) (ε_ o) := by
   refine fun a b ha hb ↦ (opow_le_opow_left b (right_le_opow a one_lt_omega0)).trans_lt ?_
   rw [← opow_mul, ← omega0_opow_epsilon, opow_lt_opow_iff_right one_lt_omega0]
   exact principal_mul_epsilon o ha hb
+
+theorem omega0_le_veblen {a b : Ordinal} (h : a ≠ 0 ∨ b ≠ 0) : ω ≤ veblen a b := by
+  rw [← Ordinal.one_le_iff_ne_zero, ← Ordinal.one_le_iff_ne_zero] at h
+  obtain ha | hb := h
+  · apply (omega0_lt_epsilon 0).le.trans
+    simpa using veblen_le_veblen_of_le_of_le ha (Ordinal.zero_le b)
+  · simpa using veblen_le_veblen_of_le_of_le (Ordinal.zero_le a) hb
 
 /-! ### Gamma function -/
 
@@ -502,5 +539,83 @@ theorem principal_opow_gamma (o : Ordinal) : Principal (· ^ ·) (Γ_ o) := by
 theorem principal_veblen_gamma (o : Ordinal) : Principal veblen (Γ_ o) := by
   intro a b ha hb
   rwa [← veblen_gamma_of_lt ha, veblen_lt_veblen_right_iff]
+
+/-! ### Cardinality -/
+
+theorem card_nfpFamily_Iio_le {o : Ordinal.{u}} (f : Set.Iio o → Ordinal → Ordinal) (a : Ordinal) :
+    (nfpFamily f a).card ≤ (max ℵ₀ o.card) * ⨆ i, (List.foldr f a i).card := by
+  rw [nfpFamily, ← (equivShrink _).symm.iSup_comp]
+  apply (card_iSup_le_sum_card _).trans
+  apply (sum_le_iSup _).trans
+  rw [(equivShrink _).symm.iSup_comp (g := fun i ↦ (List.foldr f a i).card)]
+  apply mul_le_mul_right'
+  rw [← Cardinal.lift_le.{u + 1}, lift_mk_shrink', lift_max, lift_aleph0]
+  apply (Cardinal.lift_le.2 (mk_list_le_max _)).trans
+  rw [lift_max, lift_aleph0, Ordinal.mk_Iio_ordinal, Cardinal.lift_id'.{u, u + 1}]
+
+theorem card_veblen_le (a b : Ordinal) : (veblen a b).card ≤ max ℵ₀ (max a.card b.card) := by
+  obtain rfl | ha := eq_or_ne a 0
+  · simpa using card_opow_le_of_omega0_le_left le_rfl b
+  · rw [veblen_of_ne_zero ha]
+    refine limitRecOn b ?_ ?_ ?_
+    · rw [derivFamily_zero]
+      apply (card_nfpFamily_Iio_le _ _).trans
+      rw [card_zero, Cardinal.max_zero_right]
+      apply mul_le_left (le_max_left _ _)
+      · apply ciSup_le
+        intro i
+        induction i with
+        | nil => simp
+        | cons b i IH =>
+          obtain ⟨b, hb⟩ := b
+          rw [List.foldr_cons]
+          exact (card_veblen_le _ _).trans <| max_le (le_max_left _ _)
+            (max_le ((card_le_card hb.le).trans (le_max_right _ _)) IH)
+    · intro o IH
+      rw [derivFamily_succ]
+      apply (card_nfpFamily_Iio_le _ _).trans (mul_le _ _ (le_max_left _ _))
+      · rw [← max_assoc]
+        exact le_max_left _ _
+      · apply ciSup_le
+        intro i
+        induction i with
+        | nil =>
+          rw [List.foldr_nil, card_succ, card_succ]
+          apply (add_le_add_right IH _).trans
+          rw [add_eq_left]
+          · exact max_le_max_left _ (max_le_max_left _ (self_le_add_right _ _))
+          · exact le_max_left _ _
+          · exact one_le_aleph0.trans (le_max_left _ _)
+        | cons b i IH =>
+          obtain ⟨b, hb⟩ := b
+          rw [List.foldr_cons]
+          exact (card_veblen_le _ _).trans <| max_le (le_max_left _ _) (max_le
+            (le_max_of_le_right (le_max_of_le_left (card_le_card hb.le))) IH)
+    · intro o ho IH
+      rw [derivFamily_limit _ ho]
+      apply (card_iSup_Iio_le_card_mul_iSup _).trans (mul_le _ _ (le_max_left _ _))
+      · rw [Cardinal.lift_id]
+        exact le_max_of_le_right (le_max_right _ _)
+      · have : Nonempty (Set.Iio o) := ⟨0, ho.pos⟩
+        exact ciSup_le fun b ↦
+          (IH _ b.2).trans (max_le_max_left _ (max_le_max_left _ (card_le_card b.2.le)))
+termination_by a
+
+theorem card_veblen {a b : Ordinal} (h : a ≠ 0 ∨ b ≠ 0) :
+    (veblen a b).card = max ℵ₀ (max a.card b.card) := by
+  apply (card_veblen_le a b).antisymm (max_le _ (max_le _ _))
+  · rw [aleph0_le_card]
+    exact omega0_le_veblen h
+  · exact card_le_card (left_le_veblen a b)
+  · exact card_le_card (right_le_veblen a b)
+
+@[simp]
+theorem card_epsilon {a : Ordinal} : (ε_ a).card = max ℵ₀ a.card := by
+  have : card 1 ≤ ℵ₀ := by simp
+  rw [card_veblen (Or.inl one_ne_zero), ← max_assoc, max_eq_left this]
+
+/-- `ε₀` is a countable ordinal. -/
+theorem card_epsilon0 : card ε₀ = ℵ₀ := by
+  simp
 
 end Ordinal
