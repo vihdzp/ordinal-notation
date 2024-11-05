@@ -109,6 +109,7 @@ noncomputable def repr : PreCantor → Ordinal.{0}
 @[simp] theorem repr_zero : repr 0 = 0 := rfl
 @[simp] theorem repr_one : repr 1 = 1 := by simp [repr]
 @[simp] theorem repr_oadd (e n a) : repr (oadd e n a) = ω ^ repr e * n + repr a := rfl
+@[simp] theorem repr_omega : repr omega = ω := by simp [omega]
 theorem repr_oadd_one_zero (e) : repr (oadd e 1 0) = ω ^ repr e := by simp
 theorem repr_oadd_nat_zero (e n) : repr (oadd e n 0) = ω ^ repr e * n := by simp
 
@@ -175,21 +176,21 @@ instance : Infinite PreCantor :=
   Infinite.of_injective _ injective_natCast
 
 /-- Print `ω ^ s * n`, omitting `s` if `e = 0` or `e = 1`, and omitting `n` if `n = 1` -/
-private def toString_aux (e : PreCantor) (n : ℕ) (s : String) : String :=
+private def toStringAux (e : PreCantor) (n : ℕ) (s : String) : String :=
   if e = 0 then toString n
   else (if e = 1 then "ω" else "ω ^ (" ++ s ++ ")") ++ if n = 1 then "" else " * " ++ toString n
 
-/-- Pretty-print an ordinal notation -/
+/-- Pretty-print a term in `PreCantor` -/
 private def toString : PreCantor → String
   | zero => "0"
-  | oadd e n 0 => toString_aux e n (toString e)
-  | oadd e n a => toString_aux e n (toString e) ++ " + " ++ toString a
+  | oadd e n 0 => toStringAux e n (toString e)
+  | oadd e n a => toStringAux e n (toString e) ++ " + " ++ toString a
 
 instance : ToString PreCantor :=
   ⟨toString⟩
 
 open Lean in
-/-- Print an ordinal notation -/
+/-- Print a term in `PreCantor` -/
 private def repr' (prec : ℕ) : PreCantor → Format
   | zero => "0"
   | oadd e n a =>
@@ -292,7 +293,7 @@ instance : OrderBot PreCantor where
 protected theorem bot_eq_zero : (⊥ : PreCantor) = 0 :=
   rfl
 
-theorem oadd_pos (e n a) : 0 < oadd e n a := rfl
+theorem oadd_pos : 0 < oadd e n a := rfl
 
 @[simp]
 protected theorem not_lt_zero (x : PreCantor) : ¬ x < 0 := by
@@ -391,7 +392,7 @@ theorem oadd_lt_oadd_thd (h : a₁ < a₂) : oadd e n a₁ < oadd e n a₂ := by
 
 theorem lt_oadd_self (e n a) : e < oadd e n a :=
   match e with
-  | 0 => oadd_pos 0 n a
+  | 0 => oadd_pos
   | oadd e n a => oadd_lt_oadd_fst (lt_oadd_self e n a)
 
 theorem oadd_le_oadd : oadd e₁ n₁ a₁ ≤ oadd e₂ n₂ a₂ ↔
@@ -462,7 +463,7 @@ theorem NF.of_le (hx : NF (oadd e n a)) (ha : NF a') (h : a' ≤ a) : NF (oadd e
   hx.fst.oadd n ha (h.trans_lt hx.lt_oadd)
 
 theorem NF.oadd_zero (h : NF e) {n : ℕ+} : NF (oadd e n 0) :=
-  h.oadd n NF.zero (oadd_pos e n 0)
+  h.oadd n NF.zero oadd_pos
 
 theorem NF.zero_of_zero (h : NF (oadd 0 n a)) : a = 0 := by
   simpa using h.lt_oadd
@@ -482,7 +483,7 @@ theorem NF_oadd_iterate : ∀ n : ℕ, NF ((oadd · 1 0)^[n] 0)
   | 0 => NF.zero
   | n + 1 => by
     rw [Function.iterate_succ_apply']
-    exact (NF_oadd_iterate n).oadd _ NF.zero (oadd_pos _ _ _)
+    exact (NF_oadd_iterate n).oadd _ NF.zero oadd_pos
 
 theorem NF_omega : NF omega :=
   NF_oadd_iterate 2
@@ -1041,6 +1042,9 @@ noncomputable def repr : Cantor <i Ordinal where
 theorem repr_val (x : Cantor) : repr x = x.1.repr :=
   rfl
 
+theorem repr_lt_epsilon0 (x : Cantor) : repr x < ε₀ :=
+  repr.lt_top x
+
 @[simp]
 theorem repr_zero : repr 0 = 0 :=
   PreCantor.repr_zero
@@ -1160,9 +1164,8 @@ theorem repr_oadd (e n a h) : repr (oadd e n a h) = ω ^ repr e * n + repr a :=
   PreCantor.repr_oadd _ _ _
 
 @[simp]
-theorem repr_omega : repr omega = ω := by
-  apply (repr_oadd _ _ _ _).trans
-  simp
+theorem repr_omega : repr omega = ω :=
+  PreCantor.repr_omega
 
 theorem oadd_eq (e n a h) : oadd e n a h = omega ^ e * n + a := by
   rw [← repr_inj]
@@ -1192,7 +1195,7 @@ theorem mem_range_repr_of_le {o} (hx : NF x) (h : o ≤ repr x) : ∃ y, NF y �
 /-- Evaluates a cantor form as a normal form. -/
 def toCantor : PreCantor → Cantor
   | zero => 0
-  | oadd e n a => Cantor.oadd e.toCantor n 0 (oadd_pos _ _ _) + a.toCantor
+  | oadd e n a => Cantor.oadd e.toCantor n 0 oadd_pos + a.toCantor
 
 @[simp]
 theorem toCantor_zero : toCantor 0 = 0 :=
@@ -1200,7 +1203,7 @@ theorem toCantor_zero : toCantor 0 = 0 :=
 
 @[simp]
 theorem toCantor_oadd :
-    toCantor (oadd e n a) = Cantor.oadd e.toCantor n 0 (oadd_pos _ _ _) + a.toCantor :=
+    toCantor (oadd e n a) = Cantor.oadd e.toCantor n 0 oadd_pos + a.toCantor :=
   rfl
 
 @[simp]
@@ -1266,7 +1269,7 @@ theorem lt_of_mem_wainer (hx : x ∈ wainer y) : x < y := by
     dsimp at hx
     split at hx
     · obtain rfl := hx
-      exact oadd_pos _ _ _
+      exact oadd_pos
     all_goals
       rename_i h
       obtain ⟨k, rfl⟩ := hx

@@ -377,6 +377,9 @@ theorem omega0_lt_epsilon (o : Ordinal) : ω < ε_ o := by
 theorem nat_lt_epsilon (n : ℕ) (o : Ordinal) : n < ε_ o :=
   (nat_lt_omega0 n).trans <| omega0_lt_epsilon o
 
+theorem one_lt_epsilon (o : Ordinal) : 1 < ε_ o :=
+  mod_cast nat_lt_epsilon 1 o
+
 theorem epsilon_pos (o : Ordinal) : 0 < ε_ o :=
   nat_lt_epsilon 0 o
 
@@ -467,10 +470,37 @@ theorem epsilon0_lt_gamma (o : Ordinal) : ε₀ < Γ_ o := by
 theorem omega0_lt_gamma (o : Ordinal) : ω < Γ_ o :=
   (omega0_lt_epsilon 0).trans (epsilon0_lt_gamma o)
 
-theorem nat_lt_gamma (n : ℕ) : n < Γ_ o :=
+theorem nat_lt_gamma (n : ℕ) (o : Ordinal) : n < Γ_ o :=
   (nat_lt_omega0 n).trans (omega0_lt_gamma o)
 
-theorem gamma_pos : 0 < Γ_ o :=
-  nat_lt_gamma 0
+theorem one_lt_gamma (o : Ordinal) : 1 < Γ_ o :=
+  mod_cast nat_lt_gamma 1 o
+
+theorem gamma_pos (o : Ordinal) : 0 < Γ_ o :=
+  nat_lt_gamma 0 o
+
+theorem veblen_gamma_of_lt {a b : Ordinal} (h : a < Γ_ b) : veblen a (Γ_ b) = Γ_ b := by
+  rw [← veblen_gamma_zero]
+  exact veblen_veblen_of_lt h 0
+
+@[simp]
+theorem epsilon_gamma (o : Ordinal) : ε_ (Γ_ o) = Γ_ o :=
+  veblen_gamma_of_lt (one_lt_gamma o)
+
+theorem principal_add_gamma (o : Ordinal) : Principal (· + ·) (Γ_ o) := by
+  rw [← epsilon_gamma]
+  exact principal_add_epsilon _
+
+theorem principal_mul_gamma (o : Ordinal) : Principal (· * ·) (Γ_ o) := by
+  rw [← epsilon_gamma]
+  exact principal_mul_epsilon _
+
+theorem principal_opow_gamma (o : Ordinal) : Principal (· ^ ·) (Γ_ o) := by
+  rw [← epsilon_gamma]
+  exact principal_opow_epsilon _
+
+theorem principal_veblen_gamma (o : Ordinal) : Principal veblen (Γ_ o) := by
+  intro a b ha hb
+  rwa [← veblen_gamma_of_lt ha, veblen_lt_veblen_right_iff]
 
 end Ordinal

@@ -8,6 +8,7 @@ import Mathlib.Tactic.Linarith
 import Mathlib.Data.PNat.Basic
 import Mathlib.Data.Prod.Lex
 import OrdinalNotation.Mathlib.Lemmas
+import OrdinalNotation.Mathlib.Veblen
 
 open Ordinal Order Ordering
 
@@ -15,8 +16,9 @@ open Ordinal Order Ordering
 and `vadd s a n b` is intended to refer to `veblen s a * n + b`, where `veblen` is the two-argument
 Veblen function.
 
-Comparison on `PreVeblen` coincides with the comparison of its ordinal values. In particular,
-`veblen s₁ a₁ < veblen s₂ a₂` iff one of the following holds:
+Comparison on `PreVeblen` is lexicographic, with `veblen s₁ a₁` and `veblen s₂ a₂` then being
+compared directly by their ordinal values. In particular, `veblen s₁ a₁ < veblen s₂ a₂` iff one of
+the following holds:
 
 * `s₁ < s₂` and `a₁ < veblen s₂ a₂`
 * `s₁ = s₂` and `a₁ < a₂`
@@ -79,7 +81,85 @@ def omega : PreVeblen :=
 def epsilon0 : PreVeblen :=
   vadd 1 0 1 0
 
--- TODO: repr
+/-- The ordinal denoted by a notation.
+
+This operation is non-computable, as is ordinal arithmetic in general, but it can be used to state
+correctness results. -/
+noncomputable def repr : PreVeblen → Ordinal.{0}
+  | 0 => 0
+  | vadd s a n b => veblen (repr s) (repr a) * n + repr b
+
+@[simp] theorem repr_zero : repr 0 = 0 := rfl
+@[simp] theorem repr_one : repr 1 = 1 := by simp [repr]
+@[simp] theorem repr_vadd (s a n b) :
+  repr (vadd s a n b) = veblen (repr s) (repr a) * n + repr b := rfl
+
+theorem repr_vadd_one_zero : repr (vadd s a 1 0) = veblen (repr s) (repr a) := by simp
+theorem repr_vadd_nat_zero : repr (vadd s a n 0) = veblen (repr s) (repr a) * n := by simp
+
+theorem repr_lt_gamma0 : ∀ x : PreVeblen, repr x < Γ₀
+  | zero => gamma_pos 0
+  | vadd s a n b => by
+    apply principal_add_gamma 0 (principal_mul_gamma 0 (principal_veblen_gamma 0 _ _) _) _
+    · exact repr_lt_gamma0 s
+    · exact repr_lt_gamma0 a
+    · exact nat_lt_gamma n 0
+    · exact repr_lt_gamma0 b
+
+/-- Casts a natural number into a `PreVeblen` -/
+instance : NatCast PreVeblen where
+  natCast
+  | 0 => 0
+  | Nat.succ n => vadd 0 0 n.succPNat 0
+
+@[simp] theorem natCast_zero : (0 : ℕ) = (0 : PreVeblen) := rfl
+@[simp] theorem natCast_succ (n : ℕ) : n.succ = vadd 0 0 n.succPNat 0 := rfl
+theorem natCast_one : (1 : ℕ) = (1 : PreVeblen) := rfl
+
+@[simp] theorem repr_natCast (n : ℕ) : repr n = n := by cases n <;> simp
+
+@[simp] theorem repr_ofNat (n : ℕ) [n.AtLeastTwo] :
+    repr (no_index (OfNat.ofNat n)) = n :=
+  repr_natCast n
+
+theorem injective_natCast : Function.Injective (NatCast.natCast (R := PreVeblen)) := by
+  intro m n h
+  apply_fun repr at h
+  simpa using h
+
+@[simp]
+theorem natCast_inj (m n : ℕ) : (m : PreVeblen) = n ↔ m = n :=
+  injective_natCast.eq_iff
+
+instance : Infinite PreVeblen :=
+  Infinite.of_injective _ injective_natCast
+
+/-- Print `φ(s, a) * n`, omitting the first term if `s = 0` and `a = 0`, and omitting `n` if
+`n = 1` -/
+private def toStringAux (s a : PreVeblen) (n : ℕ) (s' a' : String) : String :=
+  if s = 0 ∧ a = 0 then toString n
+  else "φ(" ++ s' ++ ", " ++ a' ++ ")" ++ if n = 1 then "" else " * " ++ toString n
+
+/-- Pretty-print a term in `PreVeblen` -/
+private def toString : PreVeblen → String
+  | zero => "0"
+  | vadd s a n 0 => toStringAux s a n (toString s) (toString a)
+  | vadd s a n b => toStringAux s a n (toString s) (toString a) ++ " + " ++ toString b
+
+instance : ToString PreVeblen :=
+  ⟨toString⟩
+
+open Lean in
+/-- Print a term in `PreVeblen` -/
+private def repr' (prec : ℕ) : PreVeblen → Format
+  | zero => "0"
+  | vadd s a n b =>
+    Repr.addAppParen
+      ("vadd " ++ (repr' max_prec s) ++ " "  ++ (repr' max_prec a) ++ " " ++ Nat.repr (n : ℕ) ++
+        " " ++ (repr' max_prec b)) prec
+
+instance : Repr PreVeblen where
+  reprPrec o prec := repr' prec o
 
 /-! ### Ordering -/
 
@@ -130,7 +210,7 @@ instance : OrderBot PreVeblen where
 protected theorem bot_eq_zero : (⊥ : PreVeblen) = 0 :=
   rfl
 
-theorem vadd_pos (s a n b) : 0 < vadd s a n b := by
+theorem vadd_pos : 0 < vadd s a n b := by
   rw [lt_def, PreVeblen.cmp.eq_def]
 
 @[simp]
@@ -141,8 +221,8 @@ protected theorem not_lt_zero (x : PreVeblen) : ¬ x < 0 := by
 protected theorem le_zero {x : PreVeblen} : x ≤ 0 ↔ x = 0 := by
   cases x <;> simp [le_def, PreVeblen.cmp.eq_def]
 
-protected theorem zero_lt_one : (0 : PreVeblen) < 1 := by
-  decide
+protected theorem zero_lt_one : (0 : PreVeblen) < 1 :=
+  vadd_pos
 
 /-! ### Normal forms -/
 
@@ -189,8 +269,23 @@ instance : DecidablePred NF :=
 
 Unlike the constructor `vadd x y 1 0`, this ensures that the output is a normal form whenever the
 inputs are. -/
+@[pp_nodot]
 def veblen (x y : PreVeblen) : PreVeblen :=
   let z := vadd x y 1 0
   if y < z then z else y
+
+theorem repr_veblen (x y : PreVeblen) : repr (veblen x y) = Ordinal.veblen (repr x) (repr y) := by
+  rw [veblen]
+  split <;> rename_i h
+  · rw [repr_vadd_one_zero]
+  · 
+
+#exit
+
+theorem NF.veblen {x y : PreVeblen} (hx : NF x) (hy : NF y) : NF (veblen x y) := by
+  rw [PreVeblen.veblen]
+  split <;> rename_i h
+  · exact hx.vadd hy _ NF.zero h vadd_pos
+  · exact hy
 
 end PreVeblen
