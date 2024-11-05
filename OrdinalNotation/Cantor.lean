@@ -8,6 +8,7 @@ import Mathlib.Data.PNat.Basic
 import Mathlib.SetTheory.Ordinal.Principal
 import Mathlib.Tactic.NormNum
 import OrdinalNotation.Mathlib.Lemmas
+import OrdinalNotation.Mathlib.Veblen
 import OrdinalNotation.FundamentalSequence
 
 /-!
@@ -131,6 +132,15 @@ theorem repr_eq_zero {x : PreCantor} : repr x = 0 ↔ x = 0 := by
   cases x
   · simp
   · simpa using repr_oadd_ne_zero
+
+theorem repr_lt_epsilon0 : ∀ x : PreCantor, repr x < ε₀
+  | zero => epsilon_pos 0
+  | oadd e n a => by
+    apply principal_add_epsilon 0 (principal_mul_epsilon 0 (principal_opow_epsilon 0 _ _) _) _
+    · exact omega0_lt_epsilon 0
+    · exact repr_lt_epsilon0 e
+    · exact nat_lt_epsilon n 0
+    · exact repr_lt_epsilon0 a
 
 /-- Casts a natural number into a `PreCantor` -/
 instance : NatCast PreCantor where
@@ -533,6 +543,26 @@ theorem NF.repr_oadd_lt_snd (hx : NF (oadd e n a)) {m} (hn : n < m) :
 theorem NF.repr_oadd_lt_fst (hx : NF (oadd e n a)) {o} (he : repr e < o) :
     repr (oadd e n a) < ω ^ o :=
   (hx.repr_oadd_lt_snd n.lt_succ_self).trans <| omega0_opow_mul_nat_lt he _
+
+theorem exists_NF_of_lt_epsilon0 {o} : o < ε₀ → ∃ x, NF x ∧ repr x = o := by
+  obtain rfl | h0 := eq_or_ne o 0
+  · exact fun _ ↦ ⟨0, NF.zero, rfl⟩
+  · intro ho
+    have He := log_omega0_lt_of_lt_epsilon0 h0 ho
+    have Hn := div_opow_log_pos ω h0
+    have Ha := mod_opow_log_lt_self ω h0
+    obtain ⟨e, he, he'⟩ := exists_NF_of_lt_epsilon0 (He.trans ho)
+    obtain ⟨n, hn⟩ := lt_omega0.1 (div_opow_log_lt o one_lt_omega0)
+    obtain ⟨a, ha, ha'⟩ := exists_NF_of_lt_epsilon0 (Ha.trans ho)
+    rw [hn] at Hn
+    use oadd e ⟨n, mod_cast Hn⟩ a
+    constructor
+    · apply he.oadd _ ha
+      rw [← repr_lt_repr_iff ha he.oadd_zero, ha', repr_oadd_one_zero, he']
+      exact mod_lt _ (opow_ne_zero _ omega0_ne_zero)
+    · rw [repr_oadd, he', PNat.mk_coe, ← hn, ha']
+      exact div_add_mod _ _
+termination_by o
 
 /-! ### Addition -/
 
@@ -941,6 +971,10 @@ theorem mk_val (o h) : (mk o h).1 = o :=
 def oadd (e : Cantor) (n : ℕ+) (a : Cantor) (h : a.1 < oadd e.1 1 0 := by decide) : Cantor :=
   ⟨_, NF.oadd e.2 n a.2 h⟩
 
+@[simp]
+theorem val_oadd (e n a h) : (oadd e n a h).val = PreCantor.oadd e.1 n a.1 :=
+  rfl
+
 instance : Zero Cantor :=
   ⟨⟨0, NF.zero⟩⟩
 
@@ -994,8 +1028,15 @@ noncomputable def repr : Cantor <i Ordinal where
   toFun x := x.1.repr
   inj' x y h := ext <| (PreCantor.repr_inj x.2 y.2).1 h
   map_rel_iff' {x y} := PreCantor.repr_lt_repr_iff x.2 y.2
-  top := sorry -- TODO: this is ε₀
-  mem_range_iff_rel' := sorry
+  top := ε₀
+  mem_range_iff_rel' := by
+    intro o
+    constructor
+    · rintro ⟨a, rfl⟩
+      exact repr_lt_epsilon0 _
+    · intro ho
+      obtain ⟨x, hx, rfl⟩ := exists_NF_of_lt_epsilon0 ho
+      exact ⟨⟨x, hx⟩, rfl⟩
 
 theorem repr_val (x : Cantor) : repr x = x.1.repr :=
   rfl
@@ -1019,10 +1060,8 @@ theorem repr_ofNat (n : ℕ) [n.AtLeastTwo] : repr (no_index (OfNat.ofNat n)) = 
 instance : NeZero (1 : Cantor) :=
   ⟨by decide⟩
 
-theorem injective_natCast : Function.Injective (NatCast.natCast (R := Cantor)) := by
-  intro x y h
-  apply_fun Subtype.val at h
-  exact PreCantor.injective_natCast h
+theorem injective_natCast : Function.Injective (NatCast.natCast (R := Cantor)) :=
+  fun _ _ h ↦ PreCantor.injective_natCast (congr_arg Subtype.val h)
 
 @[simp]
 theorem natCast_inj (m n : ℕ) : (m : Cantor) = n ↔ m = n :=
@@ -1132,7 +1171,7 @@ theorem oadd_eq (e n a h) : oadd e n a h = omega ^ e * n + a := by
 instance : NoMaxOrder Cantor where
   exists_gt x := by
     use x + 1
-    rw [← repr.lt_iff_lt, repr_add, repr_one]
+    rw [← repr_lt_repr_iff, repr_add, repr_one]
     exact lt_succ (repr x)
 
 instance : SuccOrder Cantor := by
@@ -1149,6 +1188,29 @@ theorem mem_range_repr_of_le {o} (hx : NF x) (h : o ≤ repr x) : ∃ y, NF y �
   change o ≤ Cantor.repr ⟨x, hx⟩ at h
   obtain ⟨y, hy⟩ := Cantor.mem_range_repr_of_le h
   exact ⟨y.1, y.2, hy⟩
+
+/-- Evaluates a cantor form as a normal form. -/
+def toCantor : PreCantor → Cantor
+  | zero => 0
+  | oadd e n a => Cantor.oadd e.toCantor n 0 (oadd_pos _ _ _) + a.toCantor
+
+@[simp]
+theorem toCantor_zero : toCantor 0 = 0 :=
+  rfl
+
+@[simp]
+theorem toCantor_oadd :
+    toCantor (oadd e n a) = Cantor.oadd e.toCantor n 0 (oadd_pos _ _ _) + a.toCantor :=
+  rfl
+
+@[simp]
+theorem _root_.Cantor.val_toCantor (x : Cantor) : x.1.toCantor = x := by
+  refine x.recOn rfl fun e n a h IHe IHa ↦ ?_
+  rw [← Cantor.repr_inj]
+  simp [IHe, IHa]
+
+theorem NF.toCantor {x : PreCantor} (h : NF x) : x.toCantor = ⟨x, h⟩ :=
+  Cantor.val_toCantor ⟨x, h⟩
 
 /-! ### Fundamental sequences -/
 
@@ -1225,7 +1287,7 @@ theorem NF.wainer (hx : x.NF) (hy : y ∈ wainer x) : y.NF := by
     obtain ⟨a, ha, rfl⟩ := hy
     exact hx.fst.oadd _ (NF.wainer hx.snd ha) ((lt_of_mem_wainer ha).trans hx.lt_oadd)
   | .oadd e n 0 =>
-    have : ∀ {y}, y ∈ PreCantor.wainer (.oadd e 1 0) → y.NF := by
+    have : ∀ {y}, y ∈ PreCantor.wainer (oadd e 1 0) → y.NF := by
       intro y hy
       rw [wainer.eq_def] at hy
       dsimp at hy
@@ -1250,7 +1312,7 @@ theorem wainer_strictMono : ∀ x : PreCantor, (wainer x).StrictMono
   | 0 => ⟨⟩
   | .oadd e n (oadd _ _ _) => (wainer_strictMono _).map fun x y ↦ oadd_lt_oadd_thd
   | .oadd e n 0 => by
-    have : (wainer (.oadd e 1 0)).StrictMono := by
+    have : (wainer (oadd e 1 0)).StrictMono := by
       rw [wainer.eq_def]
       dsimp
       split
