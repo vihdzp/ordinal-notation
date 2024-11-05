@@ -28,7 +28,6 @@ The following notation is scoped to the `Ordinal` namespace.
 
 ## Todo
 
-- Prove that `ε₀` and `Γ₀` are countable.
 - Prove that the exponential principal ordinals are the epsilon ordinals (and 0, 1, 2, ω).
 - Prove that the ordinals principal under `veblen` are the gamma ordinals (and 0).
 -/
@@ -413,6 +412,12 @@ theorem one_lt_epsilon (o : Ordinal) : 1 < ε_ o :=
 theorem epsilon_pos (o : Ordinal) : 0 < ε_ o :=
   nat_lt_epsilon 0 o
 
+theorem isNormal_epsilon : IsNormal (veblen 1 ·) :=
+  isNormal_veblen 1
+
+theorem self_le_epsilon (o : Ordinal) : o ≤ ε_ o :=
+  right_le_veblen 1 o
+
 theorem isLimit_epsilon (o : Ordinal) : IsLimit (ε_ o) := by
   rw [← omega0_opow_epsilon]
   exact isLimit_opow_left isLimit_omega0 (epsilon_pos o).ne'
@@ -473,6 +478,9 @@ theorem gamma_le_gamma : Γ_ a ≤ Γ_ b ↔ a ≤ b :=
 theorem gamma_inj : Γ_ a = Γ_ b ↔ a = b :=
   strictMono_gamma.injective.eq_iff
 
+theorem self_le_gamma (o : Ordinal) : o ≤ Γ_ o :=
+  strictMono_gamma.le_apply
+
 @[simp]
 theorem veblen_gamma_zero (o : Ordinal) : veblen (Γ_ o) 0 = Γ_ o :=
   isNormal_veblen_zero.deriv_fp o
@@ -483,6 +491,10 @@ theorem gamma0_eq_nfp : Γ₀ = nfp (veblen · 0) 0 :=
 theorem gamma_succ_eq_nfp (o : Ordinal) :
     Γ_ (Order.succ o) = nfp (veblen · 0) (Order.succ (Γ_ o)) :=
   deriv_succ _ _
+
+theorem gamma_limit_eq_nfp {o : Ordinal} (h : IsLimit o) :
+    Γ_ o = ⨆ a : Set.Iio o, Γ_ a :=
+  deriv_limit _ h
 
 theorem gamma0_le_of_veblen_le (h : veblen o 0 ≤ o) : Γ₀ ≤ o := by
   rw [gamma0_eq_nfp]
@@ -542,6 +554,12 @@ theorem principal_veblen_gamma (o : Ordinal) : Principal veblen (Γ_ o) := by
 
 /-! ### Cardinality -/
 
+theorem card_nfp_le (f : Ordinal → Ordinal) (a : Ordinal) :
+    (nfp f a).card ≤ ℵ₀ * ⨆ n, (f^[n] a).card := by
+  rw [← iSup_iterate_eq_nfp]
+  apply (card_iSup_le_sum_card _).trans
+  simpa using (sum_le_iSup_lift _)
+
 theorem card_nfpFamily_Iio_le {o : Ordinal.{u}} (f : Set.Iio o → Ordinal → Ordinal) (a : Ordinal) :
     (nfpFamily f a).card ≤ (max ℵ₀ o.card) * ⨆ i, (List.foldr f a i).card := by
   rw [nfpFamily, ← (equivShrink _).symm.iSup_comp]
@@ -562,8 +580,7 @@ theorem card_veblen_le (a b : Ordinal) : (veblen a b).card ≤ max ℵ₀ (max a
       apply (card_nfpFamily_Iio_le _ _).trans
       rw [card_zero, Cardinal.max_zero_right]
       apply mul_le_left (le_max_left _ _)
-      · apply ciSup_le
-        intro i
+      · apply ciSup_le fun i ↦ ?_
         induction i with
         | nil => simp
         | cons b i IH =>
@@ -576,8 +593,7 @@ theorem card_veblen_le (a b : Ordinal) : (veblen a b).card ≤ max ℵ₀ (max a
       apply (card_nfpFamily_Iio_le _ _).trans (mul_le _ _ (le_max_left _ _))
       · rw [← max_assoc]
         exact le_max_left _ _
-      · apply ciSup_le
-        intro i
+      · apply ciSup_le fun i ↦ ?_
         induction i with
         | nil =>
           rw [List.foldr_nil, card_succ, card_succ]
@@ -610,12 +626,59 @@ theorem card_veblen {a b : Ordinal} (h : a ≠ 0 ∨ b ≠ 0) :
   · exact card_le_card (right_le_veblen a b)
 
 @[simp]
-theorem card_epsilon {a : Ordinal} : (ε_ a).card = max ℵ₀ a.card := by
+theorem card_epsilon (a : Ordinal) : (ε_ a).card = max ℵ₀ a.card := by
   have : card 1 ≤ ℵ₀ := by simp
   rw [card_veblen (Or.inl one_ne_zero), ← max_assoc, max_eq_left this]
 
 /-- `ε₀` is a countable ordinal. -/
 theorem card_epsilon0 : card ε₀ = ℵ₀ := by
+  simp
+
+@[simp]
+theorem card_gamma (a : Ordinal) : (Γ_ a).card = max ℵ₀ a.card := by
+  apply le_antisymm
+  · refine limitRecOn a ?_ ?_ ?_
+    · rw [card_zero, Cardinal.max_zero_right, gamma0_eq_nfp]
+      apply (card_nfp_le _ _).trans (mul_le_left le_rfl (ciSup_le _))
+      intro n
+      induction n with
+      | zero => simp
+      | succ n IH =>
+        rw [Function.iterate_succ_apply']
+        apply (card_veblen_le _ _).trans
+        rw [card_zero, Cardinal.max_zero_right, max_eq_left IH]
+    · intro o IH
+      rw [gamma_succ_eq_nfp]
+      apply (card_nfp_le _ _).trans (mul_le (le_max_left _ _) (ciSup_le _) (le_max_left _ _))
+      intro n
+      induction n with
+      | zero =>
+        rw [Function.iterate_zero_apply, card_succ, card_succ, add_eq_left]
+        · apply IH.trans
+          apply max_le_max_left
+          apply self_le_add_right
+        · rw [aleph0_le_card]
+          exact (omega0_lt_gamma o).le
+        · rw [one_le_card]
+          exact (one_lt_gamma o).le
+      | succ n IH =>
+        rw [Function.iterate_succ_apply']
+        apply (card_veblen_le _ _).trans
+        rw [card_zero, Cardinal.max_zero_right]
+        exact max_le (le_max_left _ _) IH
+    · intro o ho IH
+      rw [gamma_limit_eq_nfp ho]
+      apply (card_iSup_Iio_le_card_mul_iSup _).trans
+      rw [Cardinal.lift_id]
+      apply mul_le (le_max_right _ _) _ (le_max_left _ _)
+      have : Nonempty (Set.Iio o) := ⟨0, ho.pos⟩
+      exact ciSup_le fun a ↦ (IH _ a.2).trans (max_le_max_left _ (card_le_card a.2.le))
+  · apply max_le _ (card_le_card (self_le_gamma a))
+    rw [aleph0_le_card]
+    exact (omega0_lt_gamma a).le
+
+/-- `Γ₀` is a countable ordinal. -/
+theorem card_gamma0 : card Γ₀ = ℵ₀ := by
   simp
 
 end Ordinal
