@@ -17,8 +17,7 @@ and `vadd s a n b` is intended to refer to `veblen s a * n + b`, where `veblen` 
 Veblen function.
 
 Comparison on `PreVeblen` is lexicographic, with `veblen s₁ a₁` and `veblen s₂ a₂` then being
-compared directly by their ordinal values. In particular, `veblen s₁ a₁ < veblen s₂ a₂` iff one of
-the following holds:
+compared so that `veblen s₁ a₁ < veblen s₂ a₂` iff one of the following holds:
 
 * `s₁ < s₂` and `a₁ < veblen s₂ a₂`
 * `s₁ = s₂` and `a₁ < a₂`
@@ -263,6 +262,43 @@ private def decidable_NF : DecidablePred NF := fun x ↦
 instance : DecidablePred NF :=
   decidable_NF
 
+theorem NF.fst (h : NF (vadd s a n b)) : NF s := by
+  rw [NF_vadd_iff] at h
+  exact h.1
+
+theorem NF.snd (h : NF (vadd s a n b)) : NF a := by
+  rw [NF_vadd_iff] at h
+  exact h.2.1
+
+theorem NF.thd (h : NF (vadd s a n b)) : NF b := by
+  rw [NF_vadd_iff] at h
+  exact h.2.2.1
+
+theorem NF.fst_lt_vadd (h : NF (vadd s a n b)) : a < vadd s a 1 0 := by
+  rw [NF_vadd_iff] at h
+  exact h.2.2.2.1
+
+theorem NF.snd_lt_vadd (h : NF (vadd s a n b)) : b < vadd s a 1 0 := by
+  rw [NF_vadd_iff] at h
+  exact h.2.2.2.2
+
+theorem NF.with_nat (h : NF (vadd s a n b)) (n') : NF (vadd s a n' b) := by
+  rwa [NF_vadd_iff] at h ⊢
+
+theorem NF_natCast (n : ℕ) : NF n := by
+  cases n
+  · exact NF.zero
+  · exact NF.zero.vadd NF.zero _ NF.zero vadd_pos vadd_pos
+
+theorem NF_one : NF 1 :=
+  NF_natCast 1
+
+theorem NF_omega : NF omega := by
+  decide
+
+theorem NF_epsilon0 : NF epsilon0 := by
+  decide
+
 /-! ### Veblen function -/
 
 /-- The two-argument Veblen function.
@@ -278,9 +314,7 @@ theorem repr_veblen (x y : PreVeblen) : repr (veblen x y) = Ordinal.veblen (repr
   rw [veblen]
   split <;> rename_i h
   · rw [repr_vadd_one_zero]
-  · 
-
-#exit
+  · sorry
 
 theorem NF.veblen {x y : PreVeblen} (hx : NF x) (hy : NF y) : NF (veblen x y) := by
   rw [PreVeblen.veblen]
