@@ -612,8 +612,7 @@ theorem card_veblen_le (a b : Ordinal) : (veblen a b).card ≤ max ℵ₀ (max a
       apply (card_iSup_Iio_le_card_mul_iSup _).trans (mul_le _ _ (le_max_left _ _))
       · rw [Cardinal.lift_id]
         exact le_max_of_le_right (le_max_right _ _)
-      · have : Nonempty (Set.Iio o) := ⟨0, ho.pos⟩
-        exact ciSup_le fun b ↦
+      · exact ciSup_le' fun b ↦
           (IH _ b.2).trans (max_le_max_left _ (max_le_max_left _ (card_le_card b.2.le)))
 termination_by a
 
@@ -636,7 +635,7 @@ theorem card_epsilon0 : card ε₀ = ℵ₀ := by
 
 @[simp]
 theorem card_gamma (a : Ordinal) : (Γ_ a).card = max ℵ₀ a.card := by
-  apply le_antisymm
+  apply (max_le _ (card_le_card (self_le_gamma a))).antisymm'
   · refine limitRecOn a ?_ ?_ ?_
     · rw [card_zero, Cardinal.max_zero_right, gamma0_eq_nfp]
       apply (card_nfp_le _ _).trans (mul_le_left le_rfl (ciSup_le _))
@@ -654,9 +653,7 @@ theorem card_gamma (a : Ordinal) : (Γ_ a).card = max ℵ₀ a.card := by
       induction n with
       | zero =>
         rw [Function.iterate_zero_apply, card_succ, card_succ, add_eq_left]
-        · apply IH.trans
-          apply max_le_max_left
-          apply self_le_add_right
+        · exact IH.trans (max_le_max_left _ (self_le_add_right _ _))
         · rw [aleph0_le_card]
           exact (omega0_lt_gamma o).le
         · rw [one_le_card]
@@ -671,10 +668,8 @@ theorem card_gamma (a : Ordinal) : (Γ_ a).card = max ℵ₀ a.card := by
       apply (card_iSup_Iio_le_card_mul_iSup _).trans
       rw [Cardinal.lift_id]
       apply mul_le (le_max_right _ _) _ (le_max_left _ _)
-      have : Nonempty (Set.Iio o) := ⟨0, ho.pos⟩
-      exact ciSup_le fun a ↦ (IH _ a.2).trans (max_le_max_left _ (card_le_card a.2.le))
-  · apply max_le _ (card_le_card (self_le_gamma a))
-    rw [aleph0_le_card]
+      exact ciSup_le' fun a ↦ (IH _ a.2).trans (max_le_max_left _ (card_le_card a.2.le))
+  · rw [aleph0_le_card]
     exact (omega0_lt_gamma a).le
 
 /-- `Γ₀` is a countable ordinal. -/
