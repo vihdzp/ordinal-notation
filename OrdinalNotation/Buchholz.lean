@@ -1,6 +1,9 @@
 import Mathlib.SetTheory.Cardinal.Aleph
+import Mathlib.Data.W.Cardinal
 
 noncomputable section
+
+universe u
 
 open Cardinal Set
 
@@ -33,6 +36,11 @@ theorem Omega_pos (v : Ordinal) : 0 < Ω_ v := by
   · simp
   · rw [Omega_of_ne_zero h]
     exact omega_pos' v
+
+theorem card_Omega_le (v : Ordinal) : (Ω_ v).card ≤ ℵ_ v := by
+  obtain rfl | h := eq_or_ne v 0
+  · simp
+  · rw [Omega_of_ne_zero h, card_omega]
 
 /-- Given a family of functions `f : Ordinal → Iio a → Ordinal`, the set `CSet' v f` represents
 the closure of `Iio (Ω_ v)` under addition and application of functions in `f`.
@@ -88,14 +96,6 @@ theorem CSet.inductionOn {p : ∀ o, o ∈ CSet v a → Prop} (ho : o ∈ CSet v
       p w hw → p x hx → p (buchholz w x) (CSet.buchholz_mem hw hx ha)) : p o ho :=
   CSet'.recOn (motive := p) _ @lt_Omega @add_mem @buchholz_mem
 
-theorem card_le_of_mem_cSet (h : o ∈ CSet v a) : o.card ≤ ℵ_ v :=
-  sorry
-
-theorem buchholz_not_mem_cSet (v a : Ordinal) : buchholz v a ∉ CSet v a := by
-  rw [buchholz_def, ← mem_compl_iff]
-  refine csInf_mem ⟨ω_ (v + 1), fun h ↦ ?_⟩
-  simpa using card_le_of_mem_cSet h
-
 theorem mem_cSet_of_lt_buchholz (h : o < buchholz v a) : o ∈ CSet v a := by
   rw [buchholz_def] at h
   rw [← not_not_mem]
@@ -103,7 +103,60 @@ theorem mem_cSet_of_lt_buchholz (h : o < buchholz v a) : o ∈ CSet v a := by
 
 theorem buchholz_le_of_not_mem_cSet (h : o ∉ CSet v a) : buchholz v a ≤ o := by
   contrapose! h
-  exact mem_CSet_of_lt_buchholz h
+  exact mem_cSet_of_lt_buchholz h
+
+/-! ### Cardinality -/
+
+/-- A W-type we surject into `CSet v a`. -/
+private def W (v : Ordinal) : Type* :=
+  WType <| Sum.elim (fun _ : (Ω_ v).toType ↦ Empty) (fun _ : Bool ↦ Bool)
+
+/-- The surjection `W v → CSet v a` -/
+private def WFun (v : Ordinal) : W v → Ordinal
+  -- Ordinals < Ω_ v
+  | .mk (Sum.inl x) _ => (enumIsoToType _).symm x
+  -- Addition
+  | .mk (Sum.inr false) f => WFun v (f false) + WFun v (f true)
+  -- Psi
+  | .mk (Sum.inr true) f => buchholz (WFun v (f false)) (WFun v (f true))
+
+private theorem cSet_subset_range_wFun : CSet v a ⊆ range (WFun v) := by
+  intro x hx
+  refine CSet.inductionOn hx ?_ ?_ ?_
+  · refine fun x hx ↦ ⟨⟨Sum.inl (enumIsoToType _ ⟨x, hx⟩), nofun⟩, ?_⟩
+    simp [WFun]
+  · rintro _ _ _ _ ⟨x, rfl⟩ ⟨y, rfl⟩
+    use ⟨Sum.inr false, Bool.rec x y⟩
+    rfl
+  · rintro _ _ _ _ _ ⟨w, rfl⟩ ⟨x, rfl⟩
+    use ⟨Sum.inr true, Bool.rec w x⟩
+    rfl
+
+theorem mk_cSet_le (v a : Ordinal) : #(CSet v a) ≤ Cardinal.lift.{u + 1, u} (ℵ_ v) := by
+  refine (mk_le_mk_of_subset cSet_subset_range_wFun).trans
+    ((Cardinal.lift_id'.{u, u + 1} _ ▸ mk_range_le_lift).trans ?_)
+  rw [Cardinal.lift_le]
+  apply (@WType.cardinal_mk_le_max_aleph0_of_finite' _ _ (fun x ↦ ?_)).trans
+  · suffices (Ω_ v).card + 2 ≤ ℵ_ v by simpa [aleph0_le_aleph] using this
+    have h2 := (nat_lt_aleph0 2).le
+    have hv := aleph0_le_aleph v
+    obtain rfl | h := eq_or_ne v 0
+    · simpa
+    · rwa [Omega_of_ne_zero h, card_omega, add_eq_left]
+      exact h2.trans hv
+  · cases x <;> dsimp <;> infer_instance
+
+theorem mk_cSet (h : v ≠ 0 ∨ a ≠ 0) : #(CSet v a) = Cardinal.lift.{u + 1, u} (ℵ_ v) := by
+  apply (mk_cSet_le v a).antisymm
+  sorry
+
+instance (v a : Ordinal.{u}) : Small.{u} (CSet v a) := by
+  rw [small_iff_lift_mk_lt_univ, Cardinal.lift_id]
+  exact (mk_cSet_le v a).trans_lt (lift_lt_univ _)
+
+theorem buchholz_not_mem_cSet (v a : Ordinal) : buchholz v a ∉ CSet v a := by
+  rw [buchholz_def, ← mem_compl_iff]
+  exact csInf_mem (nonempty_of_not_bddAbove (not_bddAbove_compl_of_small _))
 
 end Buchholz
 end Ordinal
