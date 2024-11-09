@@ -146,17 +146,35 @@ theorem mk_cSet_le (v a : Ordinal) : #(CSet v a) ≤ Cardinal.lift.{u + 1, u} (�
       exact h2.trans hv
   · cases x <;> dsimp <;> infer_instance
 
-theorem mk_cSet (h : v ≠ 0 ∨ a ≠ 0) : #(CSet v a) = Cardinal.lift.{u + 1, u} (ℵ_ v) := by
-  apply (mk_cSet_le v a).antisymm
-  sorry
-
 instance (v a : Ordinal.{u}) : Small.{u} (CSet v a) := by
   rw [small_iff_lift_mk_lt_univ, Cardinal.lift_id]
   exact (mk_cSet_le v a).trans_lt (lift_lt_univ _)
 
+private theorem nonempty_compl_cSet (v a : Ordinal) : ((CSet v a)ᶜ).Nonempty :=
+  nonempty_of_not_bddAbove (not_bddAbove_compl_of_small _)
+
 theorem buchholz_not_mem_cSet (v a : Ordinal) : buchholz v a ∉ CSet v a := by
   rw [buchholz_def, ← mem_compl_iff]
-  exact csInf_mem (nonempty_of_not_bddAbove (not_bddAbove_compl_of_small _))
+  exact csInf_mem (nonempty_compl_cSet v a)
+
+/-! ### Basic results -/
+
+theorem cSet_mono (v : Ordinal) : Monotone (CSet v) := by
+  refine fun a b h x hx ↦ CSet.inductionOn hx ?_ ?_ ?_
+  · exact fun x hx ↦ CSet.lt_Omega hx _
+  · exact fun x y _ _ ↦ CSet.add_mem
+  · exact fun w x _ _ ha hw hx ↦ CSet.buchholz_mem hw hx (ha.trans_le h)
+
+theorem buchholz_mono (v : Ordinal) : Monotone (buchholz v) := by
+  intro a b h
+  rw [buchholz_def, buchholz_def]
+  apply csInf_le_csInf' (nonempty_compl_cSet v b)
+  rw [compl_subset_compl]
+  exact cSet_mono v h
+
+theorem mk_cSet (h : v ≠ 0 ∨ a ≠ 0) : #(CSet v a) = Cardinal.lift.{u + 1, u} (ℵ_ v) := by
+  apply (mk_cSet_le v a).antisymm
+  sorry
 
 end Buchholz
 end Ordinal

@@ -16,7 +16,7 @@ theorem eq_nat_or_omega0_le (o : Ordinal) : (∃ n : ℕ, o = n) ∨ ω ≤ o :=
 theorem aleph0_le_card (o : Ordinal) : ℵ₀ ≤ o.card ↔ ω ≤ o := by
   rw [← ord_le, ord_aleph0]
 
-theorem card_opow_le_of_omega0_le_left {a : Ordinal} (ha : ω ≤ a) (b : Ordinal) :
+theorem h {a : Ordinal} (ha : ω ≤ a) (b : Ordinal) :
     (a ^ b).card ≤ max a.card b.card := by
   refine limitRecOn b ?_ ?_ ?_
   · simpa using one_lt_omega0.le.trans ha
