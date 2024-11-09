@@ -1,5 +1,6 @@
 import Mathlib.SetTheory.Cardinal.Aleph
 import Mathlib.Data.W.Cardinal
+import OrdinalNotation.Mathlib.Lemmas
 
 noncomputable section
 
@@ -136,7 +137,7 @@ theorem mk_cSet_le (v a : Ordinal) : #(CSet v a) ≤ Cardinal.lift.{u + 1, u} (�
   refine (mk_le_mk_of_subset cSet_subset_range_wFun).trans
     ((Cardinal.lift_id'.{u, u + 1} _ ▸ mk_range_le_lift).trans ?_)
   rw [Cardinal.lift_le]
-  apply (@WType.cardinal_mk_le_max_aleph0_of_finite' _ _ (fun x ↦ ?_)).trans
+  apply (@WType.cardinal_mk_le_max_aleph0_of_finite' _ _ ?_).trans
   · suffices (Ω_ v).card + 2 ≤ ℵ_ v by simpa [aleph0_le_aleph] using this
     have h2 := (nat_lt_aleph0 2).le
     have hv := aleph0_le_aleph v
@@ -144,7 +145,7 @@ theorem mk_cSet_le (v a : Ordinal) : #(CSet v a) ≤ Cardinal.lift.{u + 1, u} (�
     · simpa
     · rwa [Omega_of_ne_zero h, card_omega, add_eq_left]
       exact h2.trans hv
-  · cases x <;> dsimp <;> infer_instance
+  · rintro (_ | _) <;> dsimp <;> infer_instance
 
 instance (v a : Ordinal.{u}) : Small.{u} (CSet v a) := by
   rw [small_iff_lift_mk_lt_univ, Cardinal.lift_id]
@@ -171,6 +172,10 @@ theorem buchholz_mono (v : Ordinal) : Monotone (buchholz v) := by
   apply csInf_le_csInf' (nonempty_compl_cSet v b)
   rw [compl_subset_compl]
   exact cSet_mono v h
+
+theorem card_buchholz_le (v a : Ordinal.{u}) : (buchholz v a).card ≤ ℵ_ v := by
+  rw [buchholz_def, ← Cardinal.lift_le.{u + 1}]
+  exact (lift_card_sInf_compl_le _).trans (mk_cSet_le v a)
 
 theorem mk_cSet (h : v ≠ 0 ∨ a ≠ 0) : #(CSet v a) = Cardinal.lift.{u + 1, u} (ℵ_ v) := by
   apply (mk_cSet_le v a).antisymm

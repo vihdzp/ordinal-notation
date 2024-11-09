@@ -1,8 +1,9 @@
 import Mathlib.Data.PNat.Basic
 import Mathlib.SetTheory.Ordinal.Exponential
+import Mathlib.SetTheory.Cardinal.Arithmetic
 import Mathlib.Data.Prod.Lex
 
-open Order
+open Order Cardinal
 
 namespace Ordinal
 
@@ -84,6 +85,51 @@ theorem lt_add_iff {a b c : Ordinal} (hc : c ≠ 0) : a < b + c ↔ ∃ d < c, a
   use fun h ↦ ⟨_, sub_lt_of_lt_add h hc.bot_lt, le_add_sub a b⟩
   rintro ⟨d, hd, ha⟩
   exact ha.trans_lt (add_lt_add_left hd b)
+
+section principal
+
+theorem aleph0_le_card {o} : ℵ₀ ≤ card o ↔ ω ≤ o := by
+  rw [← ord_le, ord_aleph0]
+
+-- https://github.com/leanprover-community/mathlib4/pull/18778
+
+theorem principal_add_ord {c : Cardinal} (hc : ℵ₀ ≤ c) : Principal (· + ·) c.ord := by
+  intro a b ha hb
+  rw [lt_ord, card_add] at *
+  exact add_lt_of_lt hc ha hb
+
+theorem IsInitial.principal_add {o : Ordinal} (h : IsInitial o) (ho : ω ≤ o) :
+    Principal (· + ·) o := by
+  rw [← h.ord_card]
+  apply principal_add_ord
+  rwa [aleph0_le_card]
+
+theorem principal_add_omega' (o : Ordinal) : Principal (· + ·) (ω_ o) :=
+  (isInitial_omega o).principal_add (omega0_le_omega o)
+
+theorem principal_mul_ord {c : Cardinal} (hc : ℵ₀ ≤ c) : Principal (· * ·) c.ord := by
+  intro a b ha hb
+  rw [lt_ord, card_mul] at *
+  exact mul_lt_of_lt hc ha hb
+
+theorem IsInitial.principal_mul {o : Ordinal} (h : IsInitial o) (ho : ω ≤ o) :
+    Principal (· * ·) o := by
+  rw [← h.ord_card]
+  apply principal_mul_ord
+  rwa [aleph0_le_card]
+
+theorem principal_mul_omega' (o : Ordinal) : Principal (· * ·) (ω_ o) :=
+  (isInitial_omega o).principal_mul (omega0_le_omega o)
+
+end principal
+
+-- https://github.com/leanprover-community/mathlib4/pull/18780
+theorem lift_card_sInf_compl_le (s : Set Ordinal.{u}) :
+    Cardinal.lift.{u + 1} (sInf sᶜ).card ≤ #s := by
+  rw [← mk_Iio_ordinal]
+  refine mk_le_mk_of_subset fun x (hx : x < _) ↦ ?_
+  rw [← Set.not_not_mem]
+  exact not_mem_of_lt_csInf' hx
 
 end Ordinal
 
