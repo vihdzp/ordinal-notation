@@ -32,16 +32,21 @@ theorem Omega_zero : Ω_ 0 = 1 :=
 theorem Omega_of_ne_zero (h : v ≠ 0) : Ω_ v = ω_ v :=
   dif_neg h
 
-theorem Omega_pos (v : Ordinal) : 0 < Ω_ v := by
-  obtain rfl | h := eq_or_ne v 0
-  · simp
-  · rw [Omega_of_ne_zero h]
-    exact omega_pos' v
+@[elab_as_elim]
+def Omega_recOn {p : Ordinal → Sort*} (v : Ordinal) (h0 : p 1) (hv : ∀ v, v ≠ 0 → p (ω_ v)) :
+    p (Ω_ v) :=
+  if h : v = 0 then h ▸ Omega_zero ▸ h0 else Omega_of_ne_zero h ▸ hv _ h
+
+theorem Omega_pos (v : Ordinal) : 0 < Ω_ v :=
+  Omega_recOn v zero_lt_one fun v _ ↦ omega_pos' v
 
 theorem card_Omega_le (v : Ordinal) : (Ω_ v).card ≤ ℵ_ v := by
   obtain rfl | h := eq_or_ne v 0
   · simp
   · rw [Omega_of_ne_zero h, card_omega]
+
+theorem principal_add_Omega (v : Ordinal) : Principal (· + ·) (Ω_ v) :=
+  Omega_recOn v principal_add_one fun v _ ↦ principal_add_omega' v
 
 /-- Given a family of functions `f : Ordinal → Iio a → Ordinal`, the set `CSet' v f` represents
 the closure of `Iio (Ω_ v)` under addition and application of functions in `f`.
@@ -176,6 +181,24 @@ theorem buchholz_mono (v : Ordinal) : Monotone (buchholz v) := by
 theorem card_buchholz_le (v a : Ordinal.{u}) : (buchholz v a).card ≤ ℵ_ v := by
   rw [buchholz_def, ← Cardinal.lift_le.{u + 1}]
   exact (lift_card_sInf_compl_le _).trans (mk_cSet_le v a)
+
+@[simp]
+theorem cSet_zero (v : Ordinal) : CSet v 0 = Iio (Ω_ v) := by
+  apply subset_antisymm <;> intro x hx
+  · refine CSet.inductionOn hx ?_ ?_ ?_
+    · exact fun _ ↦ id
+    · exact fun x y _ _ hx ↦ principal_add_Omega v hx
+    · intro _ x _ _ hx
+      cases Ordinal.not_lt_zero _ hx
+  · exact CSet.lt_Omega hx 0
+
+theorem Iio_subset_cSet (v a : Ordinal) : Iio (Ω_ v) ⊆ CSet v a := by
+  rw [← cSet_zero]
+  exact cSet_mono _ (Ordinal.zero_le a)
+
+@[simp]
+theorem buchholz_zero (v : Ordinal) : buchholz v 0 = Ω_ v := by
+  rw [buchholz_def, cSet_zero, compl_Iio, csInf_Ici]
 
 theorem mk_cSet (h : v ≠ 0 ∨ a ≠ 0) : #(CSet v a) = Cardinal.lift.{u + 1, u} (ℵ_ v) := by
   apply (mk_cSet_le v a).antisymm
