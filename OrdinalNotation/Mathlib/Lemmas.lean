@@ -86,6 +86,9 @@ theorem lt_add_iff {a b c : Ordinal} (hc : c ≠ 0) : a < b + c ↔ ∃ d < c, a
   rintro ⟨d, hd, ha⟩
   exact ha.trans_lt (add_lt_add_left hd b)
 
+theorem self_le_omega (o : Ordinal) : o ≤ ω_ o :=
+  omega_strictMono.le_apply
+
 section principal
 
 theorem aleph0_le_card {o} : ℵ₀ ≤ card o ↔ ω ≤ o := by
