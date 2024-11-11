@@ -196,6 +196,10 @@ theorem buchholz_not_mem_cSet (v a : Ordinal) : buchholz v a ∉ CSet v a := by
   rw [buchholz_def, ← mem_compl_iff]
   exact csInf_mem (nonempty_compl_cSet v a)
 
+theorem buchholz_lt_omega (h : v < w) (a : Ordinal) : buchholz v a < ω_ w := by
+  contrapose! h
+  simpa using (card_le_card h).trans (card_buchholz_le v a)
+
 /-! ### Basic results -/
 
 theorem cSet_mono (v : Ordinal) : Monotone (CSet v) := by
@@ -211,9 +215,9 @@ theorem buchholz_mono (v : Ordinal) : Monotone (buchholz v) := by
   rw [compl_subset_compl]
   exact cSet_mono v h
 
-theorem buchholz_lt_omega (h : v < w) (a : Ordinal) : buchholz v a < ω_ w := by
-  contrapose! h
-  simpa using (card_le_card h).trans (card_buchholz_le v a)
+theorem CSet.buchholz_mem_of_lt (hv : v ∈ CSet v a) (ha : a ∈ CSet v a) (hb : a < b) :
+    buchholz v a ∈ CSet v b :=
+  CSet.buchholz_mem (cSet_mono v hb.le hv) (cSet_mono v hb.le ha) hb
 
 @[simp]
 theorem cSet_zero (v : Ordinal) : CSet v 0 = Iio (Ω_ v) := by
@@ -349,10 +353,7 @@ theorem not_mem_cSet_succ_of_mem_Ico (h₁ : buchholz v a * ω ≤ x) (h₂ : x.
     · rw [card_buchholz_of_ne_zero h.ne_bot, aleph_le_aleph] at h₂
       exact h₂.not_lt h
     · apply ((h₁.trans (buchholz_mono w ha)).trans (buchholz_mono_left a h)).not_lt
-      dsimp
-      conv_lhs => rw [← mul_one (buchholz v a)]
-      rw [mul_lt_mul_iff_left (buchholz_pos v a)]
-      exact one_lt_omega0
+      exact self_lt_mul (buchholz_pos v a) one_lt_omega0
 
 theorem buchholz_mul_omega0_not_mem_cSet_succ (v a : Ordinal) :
     buchholz v a * ω ∉ CSet v (succ a) := by
@@ -396,14 +397,56 @@ theorem lt_buchholz_of_cSet_mem (hx : x ∈ CSet v a) (hx' : x.card ≤ ℵ_ v) 
 
 theorem principal_add_buchholz (v a : Ordinal) : Principal (· + ·) (buchholz v a) := by
   intro x y hx hy
-  have := mem_cSet_of_lt_buchholz hx
-  have := mem_cSet_of_lt_buchholz hy
   apply lt_buchholz_of_cSet_mem
     (CSet.add_mem (mem_cSet_of_lt_buchholz hx) (mem_cSet_of_lt_buchholz hy))
   rw [card_add]
   apply Cardinal.add_le_of_le (aleph0_le_aleph v)
   · exact (card_le_card hx.le).trans (card_buchholz_le v a)
   · exact (card_le_card hy.le).trans (card_buchholz_le v a)
+
+theorem buchholz_succ_eq_mul (hv : v ∈ CSet v a) (ha : a ∈ CSet v a) :
+    buchholz v (succ a) = buchholz v a * ω := by
+  apply (buchholz_le_of_not_mem_cSet (buchholz_mul_omega0_not_mem_cSet_succ v a)).antisymm
+  apply le_of_forall_lt
+  intro x hx
+  obtain ⟨n, hn, hxn⟩ := (lt_mul_of_limit isLimit_omega0).1 hx
+  apply hxn.trans (lt_buchholz_of_cSet_mem _ _)
+  · exact CSet.mul_mem_of_lt_omega0 (CSet.buchholz_mem_of_lt hv ha (lt_succ a)) hn
+  · rw [card_mul]
+    apply mul_le_of_le (aleph0_le_aleph v) (card_buchholz_le v a) ((card_le_card hn.le).trans _)
+    rw [card_omega0]
+    exact aleph0_le_aleph v
+
+theorem buchholz_succ_eq_self (h : v ∉ CSet v a ∨ a ∉ CSet v a) :
+    buchholz v (succ a) = buchholz v a := by
+  obtain hv | ha := h
+  · rw [left_not_mem_cSet_iff] at hv
+    rw [buchholz_of_omega_le_self hv.le, buchholz_of_omega_le_self hv.le, ← hv]
+  · rw [buchholz_succ_of_not_mem ha]
+
+theorem buchholz_succ_eq_mul_iff : buchholz v (succ a) = buchholz v a * ω ↔
+    v ∈ CSet v a ∧ a ∈ CSet v a := by
+  constructor
+  · contrapose
+    intro h
+    rw [not_and_or] at h
+    rw [buchholz_succ_eq_self h]
+    exact (self_lt_mul (buchholz_pos v a) one_lt_omega0).ne
+  · rintro ⟨hv, ha⟩
+    exact buchholz_succ_eq_mul hv ha
+
+theorem buchholz_succ_eq_self_iff : buchholz v (succ a) = buchholz v a ↔
+    v ∉ CSet v a ∨ a ∉ CSet v a := by
+  refine ⟨?_, buchholz_succ_eq_self⟩
+  contrapose!
+  rintro ⟨hv, ha⟩
+  rw [buchholz_succ_eq_mul hv ha]
+  exact (self_lt_mul (buchholz_pos v a) one_lt_omega0).ne'
+
+theorem buchholz_succ_cases : buchholz v (succ a) = buchholz v a ∨
+    buchholz v (succ a) = buchholz v a * ω := by
+  rw [buchholz_succ_eq_mul_iff, buchholz_succ_eq_self_iff]
+  tauto
 
 end Buchholz
 end Ordinal

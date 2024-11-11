@@ -89,6 +89,10 @@ theorem lt_add_iff {a b c : Ordinal} (hc : c ≠ 0) : a < b + c ↔ ∃ d < c, a
 theorem self_le_omega (o : Ordinal) : o ≤ ω_ o :=
   omega_strictMono.le_apply
 
+theorem self_lt_mul {a b : Ordinal} (ha : 0 < a) (hb : 1 < b) : a < a * b := by
+  conv_lhs => rw [← mul_one a]
+  rwa [mul_lt_mul_iff_left ha]
+
 section principal
 
 theorem aleph0_le_card {o} : ℵ₀ ≤ card o ↔ ω ≤ o := by
@@ -169,3 +173,7 @@ theorem Prod.Lex.lt_of_le_of_lt {α β} [PartialOrder α] [LT β] {a b : α} {c 
   obtain h₁ | rfl := h₁.lt_or_eq
   · exact Prod.Lex.left _ _ h₁
   · exact Prod.Lex.right _ h₂
+
+theorem Cardinal.mul_le_of_le {a b c : Cardinal} (hc : ℵ₀ ≤ c) (h1 : a ≤ c) (h2 : b ≤ c) :
+    a * b ≤ c :=
+  (mul_le_mul' h1 h2).trans <| le_of_eq <| mul_eq_self hc
