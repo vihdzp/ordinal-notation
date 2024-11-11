@@ -93,6 +93,13 @@ theorem self_lt_mul {a b : Ordinal} (ha : 0 < a) (hb : 1 < b) : a < a * b := by
   conv_lhs => rw [← mul_one a]
   rwa [mul_lt_mul_iff_left ha]
 
+theorem apply_le_nfp_self (f : Ordinal → Ordinal) (a : Ordinal) : f a ≤ nfp f a :=
+  iterate_le_nfp f a 1
+
+theorem isLimit_omega (o : Ordinal) : Ordinal.IsLimit (ω_ o) := by
+  rw [← ord_aleph]
+  exact isLimit_ord (aleph0_le_aleph _)
+
 section principal
 
 theorem aleph0_le_card {o} : ℵ₀ ≤ card o ↔ ω ≤ o := by

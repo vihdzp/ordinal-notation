@@ -18,6 +18,8 @@ namespace Buchholz
 
 variable {v w x y a b : Ordinal}
 
+/-! ### Omega function -/
+
 /-- An auxiliary function with `Ω_ 0 = 1` and `Ω_ v = ω_ v` otherwise. -/
 def Omega (v : Ordinal) : Ordinal :=
   if v = 0 then 1 else ω_ v
@@ -32,25 +34,35 @@ theorem Omega_zero : Ω_ 0 = 1 :=
 theorem Omega_of_ne_zero (h : v ≠ 0) : Ω_ v = ω_ v :=
   dif_neg h
 
-@[elab_as_elim]
-def Omega_recOn {p : Ordinal → Sort*} (v : Ordinal) (h0 : p 1) (hv : ∀ v, v ≠ 0 → p (ω_ v)) :
-    p (Ω_ v) :=
-  if h : v = 0 then h ▸ Omega_zero ▸ h0 else Omega_of_ne_zero h ▸ hv _ h
+theorem Omega_eq_one_or_omega (v : Ordinal) : Ω_ v = 1 ∨ Ω_ v = ω_ v :=
+  ite_eq_or_eq _ _ _
 
-theorem Omega_pos (v : Ordinal) : 0 < Ω_ v :=
-  Omega_recOn v zero_lt_one fun v _ ↦ omega_pos' v
+theorem Omega_pos (v : Ordinal) : 0 < Ω_ v := by
+  obtain h | h := Omega_eq_one_or_omega v <;> rw [h]
+  · exact zero_lt_one
+  · exact omega_pos' v
+
+theorem Omega_ne_zero (v : Ordinal) : Ω_ v ≠ 0 :=
+  (Omega_pos v).ne'
 
 @[simp]
 theorem Omega_succ (v : Ordinal) : Ω_ (succ v) = ω_ (succ v) :=
   Omega_of_ne_zero (succ_ne_zero v)
+
+theorem Omega_le_omega (v : Ordinal) : Ω_ v ≤ ω_ v := by
+  obtain rfl | h := eq_or_ne v 0
+  · simpa using one_lt_omega0.le
+  · rw [Omega_of_ne_zero h]
 
 theorem card_Omega_le (v : Ordinal) : (Ω_ v).card ≤ ℵ_ v := by
   obtain rfl | h := eq_or_ne v 0
   · simp
   · rw [Omega_of_ne_zero h, card_omega]
 
-theorem principal_add_Omega (v : Ordinal) : Principal (· + ·) (Ω_ v) :=
-  Omega_recOn v principal_add_one fun v _ ↦ principal_add_omega' v
+theorem principal_add_Omega (v : Ordinal) : Principal (· + ·) (Ω_ v) := by
+  obtain h | h := Omega_eq_one_or_omega v <;> rw [h]
+  · exact principal_add_one
+  · exact principal_add_omega' v
 
 theorem self_le_Omega (v : Ordinal) : v ≤ Ω_ v := by
   obtain rfl | h := eq_or_ne v 0
@@ -62,6 +74,40 @@ theorem Omega_le_self_iff : Ω_ v ≤ v ↔ ω_ v ≤ v := by
   obtain rfl | h := eq_or_ne v 0
   · simpa using omega0_ne_zero
   · rw [Omega_of_ne_zero h]
+
+theorem Omega_strictMono : StrictMono Omega := by
+  intro x y h
+  rw [Omega_of_ne_zero h.ne_bot]
+  obtain rfl | hx := eq_or_ne x 0
+  · rw [Omega_zero]
+    exact one_lt_omega0.trans_le (omega0_le_omega y)
+  · rwa [Omega_of_ne_zero hx, omega_lt_omega]
+
+theorem isNormal_Omega : IsNormal Omega := by
+  rw [isNormal_iff_strictMono_limit]
+  refine ⟨Omega_strictMono, fun x hx a ha ↦ ?_⟩
+  rw [Omega_of_ne_zero hx.pos.ne', isNormal_omega.limit_le hx]
+  refine fun b hb ↦ (omega_strictMono.monotone (le_succ b)).trans ?_
+  rw [← Omega_succ]
+  exact ha _ (hx.succ_lt hb)
+
+@[simp]
+theorem nfp_Omega : nfp Omega = nfp omega := by
+  ext v
+  refine eq_of_forall_lt_iff fun x ↦ ?_
+  rw [lt_nfp, lt_nfp]
+  constructor <;> rintro ⟨n, hn⟩
+  · exact ⟨n, hn.trans_le (Omega_strictMono.monotone.iterate_le_of_le Omega_le_omega n v)⟩
+  · use n + 1
+    apply hn.trans_le
+    clear hn
+    induction n with
+    | zero => exact self_le_Omega v
+    | succ n IH =>
+      rwa [Function.iterate_succ_apply', Function.iterate_succ_apply', Function.iterate_succ_apply',
+        Omega_of_ne_zero (Omega_ne_zero _), omega_le_omega, ← Function.iterate_succ_apply' Omega]
+
+/-! ### Definitions -/
 
 /-- Given a family of functions `f : Ordinal → Iio a → Ordinal`, the set `CSet' v f` represents
 the closure of `Iio (Ω_ v)` under addition and application of functions in `f`.
@@ -109,6 +155,9 @@ theorem CSet.buchholz_mem (hw : w ∈ CSet v a) (hx : x ∈ CSet v a) (ha : x < 
 
 theorem CSet.zero_mem (v a : Ordinal) : 0 ∈ CSet v a :=
   CSet.lt_Omega (Omega_pos v) a
+
+theorem CSet.nonempty (v a : Ordinal) : (CSet v a).Nonempty :=
+  ⟨0, CSet.zero_mem v a⟩
 
 theorem CSet.mul_mem (hx : x ∈ CSet v a) : ∀ n : ℕ, x * n ∈ CSet v a
   | 0 => by simpa using CSet.zero_mem v a
@@ -285,18 +334,24 @@ theorem cSet_of_omega_le_self (h : ω_ v ≤ v) : CSet v a = Iio v := by
 theorem buchholz_of_omega_le_self (h : ω_ v ≤ v) : buchholz v a = v := by
   rw [buchholz_def, cSet_of_omega_le_self h, compl_Iio, csInf_Ici]
 
-theorem left_mem_cSet_iff : v ∈ CSet v a ↔ v < ω_ v := by
+theorem left_mem_cSet_iff : v ∈ CSet v a ↔ ω_ v ≠ v := by
   constructor <;> intro h
   · contrapose! h
-    rw [cSet_of_omega_le_self h]
+    rw [cSet_of_omega_le_self h.le]
     exact not_mem_Iio_self
   · obtain rfl | hv := eq_or_ne v 0
     · exact CSet.zero_mem 0 a
-    · rw [← Omega_of_ne_zero hv] at h
+    · rw [← Omega_of_ne_zero hv, ← (self_le_Omega v).gt_iff_ne] at h
       exact CSet.lt_Omega h a
 
-theorem left_not_mem_cSet_iff : v ∉ CSet v a ↔ ω_ v = v := by
-  rw [left_mem_cSet_iff, not_lt, (self_le_omega v).le_iff_eq]
+theorem left_not_mem_cSet_iff : v ∉ CSet v a ↔ ω_ v ≤ v := by
+  rw [left_mem_cSet_iff, ne_eq, not_not, (self_le_omega v).le_iff_eq]
+
+theorem CSet.iterate_Omega_mem (hv : ω_ v ≠ v) (ha : a ≠ 0) : ∀ n, Omega^[n] v ∈ CSet v a
+  | 0 => by rwa [Function.iterate_zero_apply, left_mem_cSet_iff]
+  | n + 1 => by
+    rw [Function.iterate_succ_apply', ← buchholz_zero]
+    exact CSet.buchholz_mem (CSet.iterate_Omega_mem hv ha n) (CSet.zero_mem v a) ha.bot_lt
 
 theorem mem_cSet_limit (ha : IsLimit a) : x ∈ CSet v a ↔ ∃ b < a, x ∈ CSet v b := by
   constructor
@@ -385,7 +440,7 @@ theorem mem_cSet_of_mem_of_le (hx : x ∈ CSet v a) (hx' : x.card ≤ ℵ_ v) (h
       · rw [cSet_succ_of_not_mem ha] at hx ⊢
         exact IH hx
     · rw [left_not_mem_cSet_iff] at hv
-      rw [cSet_of_omega_le_self hv.le] at hx ⊢
+      rw [cSet_of_omega_le_self hv] at hx ⊢
       exact hy.trans_lt hx
   · intro a ha IH hx
     obtain ⟨b, hb, hx⟩ := (mem_cSet_limit ha).1 hx
@@ -420,7 +475,7 @@ theorem buchholz_succ_eq_mul (hv : v ∈ CSet v a) (ha : a ∈ CSet v a) :
 theorem buchholz_succ_eq_self (h : v ∉ CSet v a ∨ a ∉ CSet v a) :
     buchholz v (succ a) = buchholz v a := by
   obtain hv | ha := h
-  · rw [left_not_mem_cSet_iff] at hv
+  · rw [left_not_mem_cSet_iff, (self_le_omega v).le_iff_eq] at hv
     rw [buchholz_of_omega_le_self hv.le, buchholz_of_omega_le_self hv.le, ← hv]
   · rw [buchholz_succ_of_not_mem ha]
 
@@ -447,6 +502,31 @@ theorem buchholz_succ_cases : buchholz v (succ a) = buchholz v a ∨
     buchholz v (succ a) = buchholz v a * ω := by
   rw [buchholz_succ_eq_mul_iff, buchholz_succ_eq_self_iff]
   tauto
+
+theorem lt_nfp_of_mem_cSet (h : x ∈ CSet v a) : x < nfp omega v := by
+  refine CSet.induction h ?_ ?_ ?_
+  · exact fun y hy ↦ hy.trans_le ((Omega_le_omega v).trans (apply_le_nfp_self _ v))
+  · intro x y _ _ hx hy
+    rw [← isNormal_omega.nfp_fp] at hx hy ⊢
+    exact principal_add_omega' _ hx hy
+  · intro w x _ _ _ hw _
+    apply (buchholz_lt_omega (lt_succ _) _).trans_le
+    rwa [← isNormal_omega.nfp_fp, omega_le_omega, succ_le_iff]
+
+theorem sSup_cSet (v : Ordinal) (ha : a ≠ 0) : sSup (CSet v a) = nfp omega v := by
+  obtain hv | hv := (self_le_omega v).gt_or_eq
+  · apply le_antisymm
+    · exact csSup_le (CSet.nonempty v a) fun x hx ↦ (lt_nfp_of_mem_cSet hx).le
+    · rw [← nfp_Omega]
+      refine le_of_forall_lt fun x hx ↦ ?_
+      obtain ⟨n, hn⟩ := lt_nfp.1 hx
+      exact hn.trans_le (le_csSup (bddAbove_of_small _) (CSet.iterate_Omega_mem hv.ne' ha n))
+  · rw [cSet_of_omega_le_self hv.le, IsLimit.sSup_Iio, nfp_eq_self hv]
+    rw [← hv]
+    exact isLimit_omega v
+
+def normalize (v a : Ordinal) : Ordinal :=
+  sSup (CSet v a \ Iio a)
 
 end Buchholz
 end Ordinal
