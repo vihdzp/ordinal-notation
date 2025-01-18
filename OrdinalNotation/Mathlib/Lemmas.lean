@@ -7,6 +7,7 @@ open Order Cardinal
 
 namespace Ordinal
 
+-- https://github.com/leanprover-community/mathlib4/pull/18902
 theorem natCast_mul_omega0 {n : ℕ} (hn : 0 < n) : n * ω = ω := by
   apply (Ordinal.le_mul_right ω (mod_cast hn)).antisymm' <| le_of_forall_lt fun a ↦ ?_
   rw [lt_mul_of_limit isLimit_omega0]
@@ -36,6 +37,7 @@ theorem mul_natCast_add_mul_of_isLimit {a b c : Ordinal} (h : b + a = a) (hc : c
 theorem isLimit_omega0_opow {o : Ordinal} (ho : o ≠ 0) : IsLimit (ω ^ o) :=
   isLimit_opow_left isLimit_omega0 ho
 
+-- https://github.com/leanprover-community/mathlib4/pull/18902
 theorem natCast_opow_omega0 {n : ℕ} (hn : 1 < n) : n ^ ω = ω := by
   apply (right_le_opow _ (mod_cast hn)).antisymm' <| le_of_forall_lt fun a ↦ ?_
   rw [lt_opow_of_limit (mod_cast hn.ne_bot) isLimit_omega0]
@@ -72,15 +74,18 @@ theorem succ_mul_of_isLimit {a b : Ordinal} (ha : a ≠ 0) (hb : IsLimit b) : su
   apply (mul_le_mul_right' (add_le_add_left (Ordinal.one_le_iff_ne_zero.2 ha) _) _).trans
   rw [← mul_two, mul_assoc, mul_ofNat_of_isLimit _ hb]
 
+-- https://github.com/leanprover-community/mathlib4/pull/18427
 theorem le_sub_of_add_le {a b c : Ordinal} (h : b + c ≤ a) : c ≤ a - b := by
   rw [← add_le_add_iff_left b]
   exact h.trans (le_add_sub a b)
 
+-- https://github.com/leanprover-community/mathlib4/pull/18427
 theorem sub_lt_of_lt_add {a b c : Ordinal} (h : a < b + c) (hc : 0 < c) : a - b < c := by
   obtain hab | hba := lt_or_le a b
   · rwa [Ordinal.sub_eq_zero_iff_le.2 hab.le]
   · rwa [sub_lt_of_le hba]
 
+-- https://github.com/leanprover-community/mathlib4/pull/18427
 theorem lt_add_iff {a b c : Ordinal} (hc : c ≠ 0) : a < b + c ↔ ∃ d < c, a ≤ b + d := by
   use fun h ↦ ⟨_, sub_lt_of_lt_add h hc.bot_lt, le_add_sub a b⟩
   rintro ⟨d, hd, ha⟩
@@ -102,6 +107,7 @@ theorem isLimit_omega (o : Ordinal) : Ordinal.IsLimit (ω_ o) := by
 
 section principal
 
+-- https://github.com/leanprover-community/mathlib4/pull/18901
 theorem aleph0_le_card {o} : ℵ₀ ≤ card o ↔ ω ≤ o := by
   rw [← ord_le, ord_aleph0]
 

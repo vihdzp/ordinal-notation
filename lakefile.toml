@@ -1,0 +1,13 @@
+name = "«ordinal-notation»"
+defaultTargets = ["OrdinalNotation"]
+
+[leanOptions]
+pp.unicode.fun = true
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+rev = "v4.15.0"
+
+[[lean_lib]]
+name = "OrdinalNotation"
