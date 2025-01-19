@@ -16,7 +16,7 @@ class CNFLike (α : Type u) extends Zero α where
   listEquiv_zero : listEquiv 0 = []
   NF_exp : Exp → Prop
   linearOrderExp : LinearOrder (Subtype NF_exp)
-  repr_exp : Subtype NF_exp <i Ordinal.{0}
+  reprExp : Subtype NF_exp <i Ordinal.{0}
 
 namespace CNFLike
 variable [CNFLike α]
@@ -69,5 +69,23 @@ theorem waddRecOn_wadd {p : α → Sort*} (zero : p 0) (wadd : ∀ e n a, p a �
   · exact listEquiv.symm_apply_apply _
   · rw [waddRecOn, heq_cast_iff_heq]
 
+def NF (x : α) : Prop :=
+  waddRecOn x True fun e₁ _ y IH ↦ ∃ h₁ : NF_exp e₁,
+    waddRecOn y True fun e₂ _ _ _ ↦ ∃ h₂ : NF_exp e₂, (⟨e₂, h₂⟩ : Subtype _) < ⟨e₁, h₁⟩ ∧ IH
+
+@[simp]
+theorem NF_zero : NF (0 : α) := by
+  simp [NF]
+
+@[simp]
+theorem NF_wadd_zero {e : Exp α} {n : ℕ+} : NF (wadd e n 0) ↔ NF_exp e := by
+  simp [NF]
+
+@[simp]
+theorem NF_wadd_wadd {e₁ e₂ : Exp α} {n₁ n₂ : ℕ+} {a : α} :
+    NF (wadd e₁ n₁ (wadd e₂ n₂ a)) ↔ ∃ (h₁ : NF_exp e₁) (h₂ : NF_exp e₂),
+      (⟨e₂, h₂⟩ : Subtype _) < ⟨e₁, h₁⟩ := by
+  simp [NF]
+  
 
 end CNFLike
