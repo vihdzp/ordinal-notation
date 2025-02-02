@@ -1,91 +1,61 @@
 import OrdinalNotation.Basic
+import Mathlib.Data.Prod.Lex
 
 universe u
 
 open Ordinal Set
 
-/-- A type which emulates a construction of the form `ω ^ e₀ * n₀ + ω ^ e₁ * n₁ + ⋯`, like the
-Cantor normal form.
+section CNFList
+variable {E : Type u} [LinearOrder E]
 
-This type must be isomorphic to a `List (Exp × ℕ+)` for some type `Exp` of exponents (which can be
-defined in terms of the type itself). Furthermore, there must be normal forms for the exponents,
-which are themselves linearly ordered and embed as a principal segment into the ordinals. -/
-class CNFLike (α : Type u) extends Zero α where
+/-- A list of exponents in `E` and coefficients in `ℕ+`, with the exponents in decreasing order.
+This emulates a construction of the form `ω ^ e₀ * n₀ + ω ^ e₁ * n₁ + ⋯`, like the Cantor normal
+form.
+
+If `E` is an ordinal notation, then `CNFList` can also be given the structure of an ordinal
+notation. Moreover, we can define arithmetic on this type through simpler arithmetic on `E`. -/
+def CNFList (E : Type u) [LinearOrder E] : Type u :=
+  Subtype fun l : List (E ×ₗ ℕ+) ↦ (l.map fun x ↦ (ofLex x).1).Sorted (· > ·)
+
+instance : Zero (CNFList E) := ⟨⟨[], List.sorted_nil⟩⟩
+instance [Zero E] : One (CNFList E) := ⟨⟨[toLex (0, 1)], List.sorted_singleton _⟩⟩
+instance : LinearOrder (CNFList E) := Subtype.instLinearOrder _
+
+@[simp] theorem zero_val : (0 : CNFList E).val = [] := rfl
+@[simp] theorem one_val [Zero E] : (1 : CNFList E).val = [toLex (0, 1)] := rfl
+
+noncomputable instance [Notation E] : Notation (CNFList E) where
+  repr := by
+    let f (l : CNFList E) := (l.1.map fun x ↦ ω ^ Notation.repr (ofLex x).1 * (ofLex x).2).sum
+    refine ⟨(OrderEmbedding.ofStrictMono f ?_).ltEmbedding, ω ^ Notation.top E, ?_⟩
+    · sorry
+    · sorry
+  repr_zero := List.sum_nil
+  repr_one := by simp
+
+end CNFList
+
+/-- A type which is order-isomorphic to `CNFList Exp` for some type of exponents. -/
+class CNFLike (α : Type u) extends Zero α, One α, LinearOrder α where
+  /-- The type of exponents in the Cantor form. -/
   Exp : Type u
-  listEquiv : α ≃ List (Exp × ℕ+)
-  listEquiv_zero : listEquiv 0 = []
-  NF_exp : Exp → Prop
-  linearOrderExp : LinearOrder (Subtype NF_exp)
-  reprExp : Subtype NF_exp <i Ordinal.{0}
+  /-- Exponents are linearly ordered. -/
+  linearOrderExp : LinearOrder Exp
+  /-- Exponents form an ordinal notation. -/
+  notationExp : Notation Exp
+
+  /-- The type is order-isomorphic to `CNFList Exp`. -/
+  equivList : α ≃o CNFList Exp
+  equivList_zero : equivList 0 = 0
+  equivList_one : equivList 1 = 1
 
 namespace CNFLike
 variable [CNFLike α]
 
-attribute [simp] listEquiv_zero
-attribute [instance] linearOrderExp
+attribute [instance] linearOrderExp notationExp
+attribute [simp] equivList_zero equivList_one
 
-@[simp]
-theorem listEquiv_symm_nil : listEquiv.symm [] = (0 : α) := by
-  rw [Equiv.symm_apply_eq, listEquiv_zero]
-
-/-- The pseudo-constructor `ω ^ e * n + a`. -/
-def wadd (e : Exp α) (n : ℕ+) (a : α) : α :=
-  listEquiv.symm (⟨e, n⟩ :: listEquiv a)
-
-@[simp]
-theorem listEquiv_wadd (e : Exp α) (n : ℕ+) (a : α) :
-    listEquiv (wadd e n a) = ⟨e, n⟩ :: listEquiv a :=
-  listEquiv.apply_symm_apply _
-
-@[elab_as_elim]
-def waddRecOn {p : α → Sort*} (x : α) (zero : p 0) (wadd : ∀ e n a, p a → p (wadd e n a)) : p x :=
-  suffices ∀ l, p (listEquiv.symm l) from cast (by simp) (this (listEquiv x))
-  List.rec (cast (by simp) zero) fun x l IH ↦ cast (by simp [CNFLike.wadd]) (wadd x.1 x.2 _ IH)
-
-@[simp]
-theorem waddRecOn_zero {p : α → Sort*} (zero : p 0) (wadd : ∀ e n a, p a → p (wadd e n a)) :
-    waddRecOn 0 zero wadd = zero := by
-  rw [waddRecOn, cast_eq_iff_heq, listEquiv_zero]
-  exact cast_heq _ _
-
-@[simp]
-theorem cast_heq_iff_heq {α β γ : Sort u} (h : α = β) (a : α) (c : γ) :
-    HEq (cast h a) c ↔ HEq a c := by
-  subst h
-  rfl
-
-@[simp]
-theorem heq_cast_iff_heq {α β γ : Sort u} (h : β = γ) (a : α) (b : β) :
-    HEq a (cast h b) ↔ HEq a b := by
-  subst h
-  rfl
-
-@[simp]
-theorem waddRecOn_wadd {p : α → Sort*} (zero : p 0) (wadd : ∀ e n a, p a → p (wadd e n a))
-    (e : Exp α) (n : ℕ+) (a : α) :
-    waddRecOn (CNFLike.wadd e n a) zero wadd = wadd e n a (waddRecOn a zero wadd) := by
-  rw [waddRecOn, cast_eq_iff_heq, listEquiv_wadd, cast_heq_iff_heq]
-  congr
-  · exact listEquiv.symm_apply_apply _
-  · rw [waddRecOn, heq_cast_iff_heq]
-
-def NF (x : α) : Prop :=
-  waddRecOn x True fun e₁ _ y IH ↦ ∃ h₁ : NF_exp e₁,
-    waddRecOn y True fun e₂ _ _ _ ↦ ∃ h₂ : NF_exp e₂, (⟨e₂, h₂⟩ : Subtype _) < ⟨e₁, h₁⟩ ∧ IH
-
-@[simp]
-theorem NF_zero : NF (0 : α) := by
-  simp [NF]
-
-@[simp]
-theorem NF_wadd_zero {e : Exp α} {n : ℕ+} : NF (wadd e n 0) ↔ NF_exp e := by
-  simp [NF]
-
-@[simp]
-theorem NF_wadd_wadd {e₁ e₂ : Exp α} {n₁ n₂ : ℕ+} {a : α} :
-    NF (wadd e₁ n₁ (wadd e₂ n₂ a)) ↔ ∃ (h₁ : NF_exp e₁) (h₂ : NF_exp e₂),
-      (⟨e₂, h₂⟩ : Subtype _) < ⟨e₁, h₁⟩ := by
-  simp [NF]
-  
+noncomputable instance : Notation α where
+  repr := equivList.toInitialSeg.transPrincipal Notation.repr
 
 end CNFLike

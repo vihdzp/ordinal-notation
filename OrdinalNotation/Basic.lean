@@ -27,8 +27,8 @@ satisfies the appropriate conditions. -/
 class Notation (α : Type*) [LinearOrder α] extends Zero α, One α where
   /-- Represent a term as an ordinal. -/
   repr : α <i Ordinal.{0}
-  repr_zero : repr 0 = 0
-  repr_one : repr 1 = 1
+  repr_zero : repr 0 = 0 := by simp
+  repr_one : repr 1 = 1 := by simp
 
 namespace Notation
 
