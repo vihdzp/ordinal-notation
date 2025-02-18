@@ -154,6 +154,8 @@ theorem expGT_single_iff {e₁ e₂ : E} {n : ℕ+} : expGT e₁ (single e₂ n)
 
 variable [Notation E]
 
+/-- This is made private, as we'll instead use `Notation.eval` once we're able to build the
+instance. -/
 private def evalAux (l : CNFList E) : Ordinal :=
   (l.1.map fun x ↦ ω ^ eval (ofLex x).1 * (ofLex x).2).sum
 
@@ -166,8 +168,7 @@ private theorem le_evalAux_cons {l : CNFList E} (h : expGT e l) (n : ℕ+) :
   le_add_of_le_left <| le_mul_of_one_le_right' (mod_cast n.one_le)
 
 private theorem evalAux_lt' {l : CNFList E} {o : Ordinal}
-    (h : ∀ x ∈ l.1.head?, eval (ofLex x).1 < o) :
-    evalAux l < ω ^ o := by
+    (h : ∀ x ∈ l.1.head?, eval (ofLex x).1 < o) : evalAux l < ω ^ o := by
   induction l using consRecOn with
   | zero => exact opow_pos _ omega0_pos
   | cons e' l he' n IH =>
@@ -176,12 +177,10 @@ private theorem evalAux_lt' {l : CNFList E} {o : Ordinal}
     · exact omega0_opow_mul_nat_lt h n
     · exact IH fun x hx ↦ (eval_strictMono (he' x hx)).trans h
 
-private theorem expGT.evalAux_lt {l : CNFList E} (h : expGT e l) :
-    evalAux l < ω ^ eval e :=
+private theorem expGT.evalAux_lt {l : CNFList E} (h : expGT e l) : evalAux l < ω ^ eval e :=
   evalAux_lt' (by simpa [expGT] using h)
 
-private theorem expGT_iff_evalAux_lt {l : CNFList E} :
-    expGT e l ↔ evalAux l < ω ^ eval e where
+private theorem expGT_iff_evalAux_lt {l : CNFList E} : expGT e l ↔ evalAux l < ω ^ eval e where
   mp := expGT.evalAux_lt
   mpr h := by
     induction l using consRecOn with
@@ -191,7 +190,7 @@ private theorem expGT_iff_evalAux_lt {l : CNFList E} :
       exact eval_lt_eval.1 <| (opow_lt_opow_iff_right one_lt_omega0).1 <|
         (le_evalAux_cons _ _).trans_lt h
 
-private theorem evalAux_lt (l : CNFList E) : evalAux l < ω ^ Notation.top E :=
+private theorem evalAux_lt_opow_top (l : CNFList E) : evalAux l < ω ^ Notation.top E :=
   evalAux_lt' fun _ _ ↦ eval_lt_top _
 
 private theorem strictMono_evalAux : StrictMono (evalAux (E := E)) := by
@@ -229,24 +228,24 @@ private theorem mem_range_evalAux_of_lt {o} (h : o < ω ^ Notation.top E) :
     obtain ⟨l, hl⟩ := IH ((mod_opow_log_lt_self ω ho).trans h)
     have h : expGT e l := by
       rw [expGT_iff_evalAux_lt, hl, ← he]
-      apply mod_lt _ (opow_ne_zero _ omega0_ne_zero)
+      exact mod_lt _ (opow_ne_zero _ omega0_ne_zero)
     refine ⟨cons h ⟨n, ?_⟩, ?_⟩
     · rw [← Nat.cast_lt (α := Ordinal), ← hn, Nat.cast_zero]
       exact div_opow_log_pos _ ho
     · rw [evalAux_cons, he, PNat.mk_coe, ← hn, hl, div_add_mod]
 
-private theorem range_evalAux : Set.range (evalAux (E := E)) = Set.Iio (ω ^ Notation.top E) := by
-  ext o
+private theorem mem_range_evalAux_iff (o) :
+    o ∈ Set.range (evalAux (E := E)) ↔ o < ω ^ Notation.top E := by
   refine ⟨?_, mem_range_evalAux_of_lt⟩
   rintro ⟨l, rfl⟩
-  exact evalAux_lt l
+  exact evalAux_lt_opow_top l
 
 /-- If `E` is an ordinal notation, then `CNFList E` is as well, by evaluating
 `ω ^ e₀ * n₀ + ω ^ e₁ * n₁ + ⋯` in the obvious manner. -/
 @[simps! eval_top]
 noncomputable instance [Notation E] : Notation (CNFList E) where
   eval := ⟨(OrderEmbedding.ofStrictMono _ strictMono_evalAux).ltEmbedding, ω ^ Notation.top E,
-    Set.ext_iff.1 range_evalAux⟩
+    mem_range_evalAux_iff⟩
   eval_zero := List.sum_nil
   eval_one := by simp [evalAux]
 
@@ -255,8 +254,20 @@ theorem eval_cons {e : E} {l : CNFList E} (h : expGT e l) (n : ℕ+) :
     eval (cons h n) = ω ^ eval e * n + eval l :=
   rfl
 
-#exit
+@[simp]
+theorem eval_single (e : E) (n : ℕ+) : eval (single e n) = ω ^ eval e * n := by
+  simp [single]
+
+theorem le_eval_cons {l : CNFList E} (h : expGT e l) (n : ℕ+) : ω ^ eval e ≤ eval (cons h n) :=
+  le_evalAux_cons h n
+
+theorem expGT_iff_eval_lt {l : CNFList E} : expGT e l ↔ eval l < ω ^ eval e := expGT_iff_evalAux_lt
+theorem eval_lt_opow_top (l : CNFList E) : evalAux l < ω ^ Notation.top E := evalAux_lt_opow_top l
+alias ⟨expGT.eval_lt, _⟩ := expGT_iff_eval_lt
+
 end CNFList
+
+/-! ### CNF-like types -/
 
 /-- A type which is order-isomorphic to `CNFList Exp` for some type of exponents. Arithmetic can be
 transferred through this isomorphism. -/

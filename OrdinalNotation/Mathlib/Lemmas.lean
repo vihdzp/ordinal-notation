@@ -121,6 +121,12 @@ def PrincipalSeg.withTop [PartialOrder α] [LinearOrder β] [NoMaxOrder β] [Suc
       · use ⊤
 
 @[simp]
+theorem PrincipalSeg.range_eq_Iio_top [Preorder α] [Preorder β] (f : α <i β) :
+    Set.range f = Set.Iio f.top := by
+  ext
+  exact f.mem_range_iff_rel
+
+@[simp]
 theorem PrincipalSeg.withTop_coe [PartialOrder α] [LinearOrder β] [NoMaxOrder β] [SuccOrder β]
     (f : α <i β) (x : α) : f.withTop x = f x :=
   rfl

@@ -67,6 +67,9 @@ theorem eval_le_eval : eval x ≤ eval y ↔ x ≤ y := eval.le_iff_le
 theorem eval_lt_eval : eval x < eval y ↔ x < y := eval.lt_iff_lt
 theorem eval_inj : eval x = eval y ↔ x = y := eval.inj
 theorem eval_lt_top (x : α) : eval x < top α := eval.lt_top x
+
+theorem range_eval {o : Ordinal} : range (eval : α → _) = Set.Iio (top α) :=
+  eval.range_eq_Iio_top
 theorem mem_range_eval_iff_lt {o : Ordinal} : o ∈ range (eval : α → _) ↔ o < top α :=
   eval.mem_range_iff_rel' o
 
