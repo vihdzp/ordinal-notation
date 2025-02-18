@@ -245,9 +245,9 @@ private theorem expGT.evalAux_lt {l : CNFList E} (h : expGT e l) : evalAux l < �
 private theorem expGT_iff_evalAux_lt {l : CNFList E} : expGT e l ↔ evalAux l < ω ^ eval e where
   mp := expGT.evalAux_lt
   mpr h := by
-    induction l using consRecOn with
+    cases l using consRecOn with
     | zero => simp
-    | cons f l hf n IH =>
+    | cons f l hf n =>
       rw [expGT_cons_iff]
       exact eval_lt_eval.1 <| (opow_lt_opow_iff_right one_lt_omega0).1 <|
         (le_evalAux_cons _ _).trans_lt h
@@ -265,7 +265,7 @@ private theorem strictMono_evalAux : StrictMono (evalAux (E := E)) := by
       apply (Ordinal.mul_pos _ _).trans_le (le_add_right _ _)
       · exact opow_pos _ omega0_pos
       · exact_mod_cast k.pos
-    | cons e l he n IH =>
+    | cons e l he n =>
       simp_rw [evalAux_cons]
       obtain (h | ⟨rfl, rfl, h⟩) := cons_lt_cons_iff.1 hlm
       · calc
@@ -367,9 +367,9 @@ private theorem cons_addAux_cons (a b : E ×ₗ ℕ+) (l m : List (E ×ₗ ℕ+)
 
 private theorem expGT_addAux {l m : CNFList E} (hl : expGT e l) (hm : expGT e m)
     (H : IsCNFList (addAux l.1 m.1)) : expGT e ⟨addAux l.1 m.1, H⟩ := by
-  induction l using consRecOn with
+  cases l using consRecOn with
   | zero => exact hm
-  | cons e l h n IH =>
+  | cons e l h n =>
     induction m using consRecOn with
     | zero => exact hl
     | cons f m h' k =>
@@ -498,9 +498,9 @@ private theorem isCNFList_subAux (l m : CNFList E) : IsCNFList (subAux l.1 m.1) 
   induction l using consRecOn generalizing m with
   | zero => exact .nil
   | cons e l h n IH =>
-    induction m using consRecOn with
+    cases m using consRecOn with
     | zero => rw [val_zero, subAux_nil]; exact CNFList.isCNFList _
-    | cons f m h' k IH' =>
+    | cons f m h' k =>
       dsimp [cons_subAux_cons]
       have := fun n ↦ (cons h n).isCNFList
       aesop
@@ -651,20 +651,45 @@ If `E` is an ordinal notation with lawful addition, then multiplication on `CNFL
 instance : Mul (CNFList E) where
   mul l m := ⟨_, isCNFList_mulAux l m⟩
 
+private theorem zero_mul' (l : CNFList E) : 0 * l = 0 := ext (nil_mulAux l.1)
+private theorem mul_zero' (l : CNFList E) : l * 0 = 0 := ext (mulAux_nil l.1)
+
+private theorem cons_mul_cons' (hl : expGT e l) (hm : expGT f m) (n k : ℕ+) :
+    (cons hl n * cons hm k).1 = if f = 0
+      then toLex (e, n * k) :: l.1
+      else toLex (e + f, k) :: (cons hl n * m).1 :=
+  rfl
+
+theorem expGT.cons_mul (hl : expGT e l) (hm : expGT f m) (n : ℕ+) :
+    expGT (e + f) (cons hl n * m) :=
+  hl.cons_mulAux hm _
+
+theorem expGT.mul_natCast (hl : expGT e l) (n : ℕ) : expGT e (l * n) := by
+  cases l using consRecOn with
+  | zero => simp [zero_mul']
+  | cons f l h k =>
+    cases n with
+    | zero => simp [mul_zero']
+    | succ n =>
+      rw [← n.succ_eq_add_one, ← n.succPNat_coe, ← single_zero, single_eq_cons,
+        expGT, cons_mul_cons']
+      simp_all
+
+theorem cons_mul_cons (hl : expGT e l) (hm : expGT f m) (n k : ℕ+) :
+    cons hl n * cons hm k = if f = 0
+      then cons hl (n * k)
+      else cons (hl.cons_mul hm n) k := by
+  apply ext
+  rw [cons_mul_cons']
+  split <;> rfl
+
+@[simp]
+theorem cons_mul_natCast (hl : expGT e l) (n k : ℕ+) : cons hl n * k = cons hl (n * k) := by
+  rw [← single_zero, single_eq_cons, cons_mul_cons]; exact if_pos rfl
+
 #exit
 
-private theorem zero_mul' (l : CNFList E) : 0 * l = 0 := ext (nil_mulAux l.1)
-private theorem mul_zero' (l : CNFList E) : l * 0 = 0 := rfl
-
-private theorem mul_natCast (l : CNFList E) (n : ℕ+) : l * n = mulNat l n := by
-  apply ext
-  change mulAux _ _  = _
-  rw [val_PNat, mulAux_single]
-  exact if_pos rfl
-
-theorem expGT.mul_natCast (h : expGT e l) (n : ℕ+) : expGT e (l * n) := by
-  rw [l.mul_natCast]
-  exact h.mulNat n
+#exit
 
 @[simp]
 theorem cons_mul_natCast {l} (h : expGT e l) (n k : ℕ+) :
