@@ -7,16 +7,6 @@ open Order Cardinal
 
 namespace Ordinal
 
--- https://github.com/leanprover-community/mathlib4/pull/18902
-theorem natCast_mul_omega0 {n : ℕ} (hn : 0 < n) : n * ω = ω := by
-  apply (Ordinal.le_mul_right ω (mod_cast hn)).antisymm' <| le_of_forall_lt fun a ↦ ?_
-  rw [lt_mul_of_limit isLimit_omega0]
-  rintro ⟨m, hm, ha⟩
-  obtain ⟨m, rfl⟩ := lt_omega0.1 hm
-  apply ha.trans
-  rw [← Ordinal.natCast_mul]
-  exact nat_lt_omega0 _
-
 theorem natCast_mul_of_isLimit {n : ℕ} (hn : 0 < n) {o : Ordinal} (ho : IsLimit o) :
     n * o = o := by
   rw [isLimit_iff_omega0_dvd] at ho
@@ -36,16 +26,6 @@ theorem mul_natCast_add_mul_of_isLimit {a b c : Ordinal} (h : b + a = a) (hc : c
 
 theorem isLimit_omega0_opow {o : Ordinal} (ho : o ≠ 0) : IsLimit (ω ^ o) :=
   isLimit_opow_left isLimit_omega0 ho
-
--- https://github.com/leanprover-community/mathlib4/pull/18902
-theorem natCast_opow_omega0 {n : ℕ} (hn : 1 < n) : n ^ ω = ω := by
-  apply (right_le_opow _ (mod_cast hn)).antisymm' <| le_of_forall_lt fun a ↦ ?_
-  rw [lt_opow_of_limit (mod_cast hn.ne_bot) isLimit_omega0]
-  rintro ⟨m, hm, ha⟩
-  obtain ⟨m, rfl⟩ := lt_omega0.1 hm
-  apply ha.trans
-  rw [← natCast_opow]
-  exact nat_lt_omega0 _
 
 theorem natCast_opow_omega0_opow_succ {n : ℕ} (hn : 1 < n) (a : ℕ) :
     n ^ ω ^ (a + 1) = ω ^ ω ^ a := by
@@ -74,23 +54,6 @@ theorem succ_mul_of_isLimit {a b : Ordinal} (ha : a ≠ 0) (hb : IsLimit b) : su
   apply (mul_le_mul_right' (add_le_add_left (Ordinal.one_le_iff_ne_zero.2 ha) _) _).trans
   rw [← mul_two, mul_assoc, mul_ofNat_of_isLimit _ hb]
 
--- https://github.com/leanprover-community/mathlib4/pull/18427
-theorem le_sub_of_add_le {a b c : Ordinal} (h : b + c ≤ a) : c ≤ a - b := by
-  rw [← add_le_add_iff_left b]
-  exact h.trans (le_add_sub a b)
-
--- https://github.com/leanprover-community/mathlib4/pull/18427
-theorem sub_lt_of_lt_add {a b c : Ordinal} (h : a < b + c) (hc : 0 < c) : a - b < c := by
-  obtain hab | hba := lt_or_le a b
-  · rwa [Ordinal.sub_eq_zero_iff_le.2 hab.le]
-  · rwa [sub_lt_of_le hba]
-
--- https://github.com/leanprover-community/mathlib4/pull/18427
-theorem lt_add_iff {a b c : Ordinal} (hc : c ≠ 0) : a < b + c ↔ ∃ d < c, a ≤ b + d := by
-  use fun h ↦ ⟨_, sub_lt_of_lt_add h hc.bot_lt, le_add_sub a b⟩
-  rintro ⟨d, hd, ha⟩
-  exact ha.trans_lt (add_lt_add_left hd b)
-
 theorem self_le_omega (o : Ordinal) : o ≤ ω_ o :=
   omega_strictMono.le_apply
 
@@ -104,52 +67,6 @@ theorem apply_le_nfp_self (f : Ordinal → Ordinal) (a : Ordinal) : f a ≤ nfp 
 theorem isLimit_omega (o : Ordinal) : Ordinal.IsLimit (ω_ o) := by
   rw [← ord_aleph]
   exact isLimit_ord (aleph0_le_aleph _)
-
-section principal
-
--- https://github.com/leanprover-community/mathlib4/pull/18901
-theorem aleph0_le_card {o} : ℵ₀ ≤ card o ↔ ω ≤ o := by
-  rw [← ord_le, ord_aleph0]
-
--- https://github.com/leanprover-community/mathlib4/pull/18778
-
-theorem principal_add_ord {c : Cardinal} (hc : ℵ₀ ≤ c) : Principal (· + ·) c.ord := by
-  intro a b ha hb
-  rw [lt_ord, card_add] at *
-  exact add_lt_of_lt hc ha hb
-
-theorem IsInitial.principal_add {o : Ordinal} (h : IsInitial o) (ho : ω ≤ o) :
-    Principal (· + ·) o := by
-  rw [← h.ord_card]
-  apply principal_add_ord
-  rwa [aleph0_le_card]
-
-theorem principal_add_omega' (o : Ordinal) : Principal (· + ·) (ω_ o) :=
-  (isInitial_omega o).principal_add (omega0_le_omega o)
-
-theorem principal_mul_ord {c : Cardinal} (hc : ℵ₀ ≤ c) : Principal (· * ·) c.ord := by
-  intro a b ha hb
-  rw [lt_ord, card_mul] at *
-  exact mul_lt_of_lt hc ha hb
-
-theorem IsInitial.principal_mul {o : Ordinal} (h : IsInitial o) (ho : ω ≤ o) :
-    Principal (· * ·) o := by
-  rw [← h.ord_card]
-  apply principal_mul_ord
-  rwa [aleph0_le_card]
-
-theorem principal_mul_omega' (o : Ordinal) : Principal (· * ·) (ω_ o) :=
-  (isInitial_omega o).principal_mul (omega0_le_omega o)
-
-end principal
-
--- https://github.com/leanprover-community/mathlib4/pull/18780
-theorem lift_card_sInf_compl_le (s : Set Ordinal.{u}) :
-    Cardinal.lift.{u + 1} (sInf sᶜ).card ≤ #s := by
-  rw [← mk_Iio_ordinal]
-  refine mk_le_mk_of_subset fun x (hx : x < _) ↦ ?_
-  rw [← Set.not_not_mem]
-  exact not_mem_of_lt_csInf' hx
 
 end Ordinal
 
@@ -177,6 +94,42 @@ def PrincipalSeg.withTopCoe [Preorder α] : α <i WithTop α := by
   rw [WithTop.range_coe]
   rfl
 
+theorem PrincipalSeg.top_ne [Preorder α] [Preorder β] (f : α <i β) {x : α} : f.top ≠ f x :=
+  (f.lt_top x).ne'
+
+theorem PrincipalSeg.ne_top [Preorder α] [Preorder β] (f : α <i β) {x : α} : f x ≠ f.top :=
+  (f.lt_top x).ne
+
+@[simps!]
+def PrincipalSeg.withTop [PartialOrder α] [LinearOrder β] [NoMaxOrder β] [SuccOrder β]
+    (f : α <i β) : WithTop α <i β where
+  toFun x := match x with
+    | (x : α) => f x
+    | ⊤ => f.top
+  inj' x y := by cases x <;> cases y <;> simp [eq_comm, f.top_ne]
+  map_rel_iff' {x y} := by cases x <;> cases y <;> simp [f.lt_top, le_of_lt]
+  top := Order.succ f.top
+  mem_range_iff_rel' x := by
+    rw [RelEmbedding.coe_mk, Function.Embedding.coeFn_mk, Set.mem_range, lt_succ_iff]
+    refine ⟨?_, fun h ↦ ?_⟩
+    · rintro ⟨(_ | _), rfl⟩
+      · rfl
+      · exact (f.lt_top _).le
+    · obtain h | rfl := h.lt_or_eq
+      · obtain ⟨x, rfl⟩ := f.mem_range_iff_rel.2 h
+        use x
+      · use ⊤
+
+@[simp]
+theorem PrincipalSeg.withTop_coe [PartialOrder α] [LinearOrder β] [NoMaxOrder β] [SuccOrder β]
+    (f : α <i β) (x : α) : f.withTop x = f x :=
+  rfl
+
+@[simp]
+theorem PrincipalSeg.withTop_of_top [PartialOrder α] [LinearOrder β] [NoMaxOrder β] [SuccOrder β]
+    (f : α <i β) : f.withTop ⊤ = f.top :=
+  rfl
+
 instance [LT α] [WellFoundedLT α] [LT β] [WellFoundedLT β] :
     WellFoundedRelation (Lex (α × β)) :=
   ⟨(· < ·), WellFounded.prod_lex wellFounded_lt wellFounded_lt⟩
@@ -190,3 +143,6 @@ theorem Prod.Lex.lt_of_le_of_lt {α β} [PartialOrder α] [LT β] {a b : α} {c 
 theorem Cardinal.mul_le_of_le {a b c : Cardinal} (hc : ℵ₀ ≤ c) (h1 : a ≤ c) (h2 : b ≤ c) :
     a * b ≤ c :=
   (mul_le_mul' h1 h2).trans <| le_of_eq <| mul_eq_self hc
+
+instance : CanonicallyOrderedAdd Ordinal where
+  le_self_add := Ordinal.le_add_right

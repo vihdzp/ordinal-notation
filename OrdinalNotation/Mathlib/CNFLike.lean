@@ -1,44 +1,25 @@
 import OrdinalNotation.Basic
+import OrdinalNotation.Mathlib.Lemmas
+import OrdinalNotation.Mathlib.List
 import Mathlib.Data.Prod.Lex
 import Mathlib.SetTheory.Ordinal.Principal
-import Init.Data.List
+import Mathlib.SetTheory.Ordinal.CantorNormalForm
+
+/-!
+# CNF-like ordinal notations
+
+We define the type `CNFLike` for ordinal notations built upon the Cantor Normal Form. The ultimate
+objective is to implement all (most?) other ordinal notations in this repository in terms of it.
+-/
 
 universe u
 
--- https://github.com/leanprover-community/mathlib4/pull/21339
-section
-variable {α : Type*}
-
-instance (priority := 1100) List.instLE' [LT α] : LE (List α) := ⟨List.le⟩
-instance (priority := 1100) List.instLT' [LT α] : LT (List α) := ⟨List.lt⟩
-
--- TODO: we should unify the `Std` relation typeclasses with their Mathlib counterparts
--- `IsIrrefl`, `IsAsymm`, etc.
-instance [Preorder α] : @Std.Irrefl α (· < ·) := ⟨lt_irrefl⟩
-instance [Preorder α] : @Std.Asymm α (· < ·) := ⟨fun _ _ ↦ lt_asymm⟩
-instance [LinearOrder α] : @Std.Antisymm α (¬ · < ·) :=
-  ⟨by simpa using fun _ _ ↦ ge_antisymm⟩
-instance [LinearOrder α] : @Trans α α α (¬ · < ·) (¬ · < ·) (¬ · < ·) :=
-  ⟨by simp; exact fun h₁ h₂ ↦ le_trans h₂ h₁⟩
-instance [LinearOrder α] : @Std.Total α (¬ · < ·) :=
-  ⟨by simpa using fun _ _ ↦ le_total _ _⟩
-
-instance (priority := 1100) [LinearOrder α] : LinearOrder (List α) where
-  le_refl := List.lex_irrefl lt_irrefl
-  le_trans _ _ _ := List.le_trans
-  le_total := List.le_total
-  le_antisymm _ _ := List.le_antisymm
-  decidableLE := inferInstanceAs (DecidableRel (¬ · > ·))
-  lt_iff_le_not_le a b := by simpa [← not_le] using List.le_of_lt (α := α)
-  max a b := if a ≤ b then b else a
-  min a b := if a ≤ b then a else b
-
-end
-
-open Ordinal Set
+open Ordinal Notation Set
 
 section Lists
-variable {E : Type u} [LinearOrder E]
+variable {E : Type u} {e e' : E} [LinearOrder E]
+
+/-! ### Basic definitions -/
 
 /-- The property determining whether a list is a `CNFList`. -/
 def IsCNFList (l : List (E ×ₗ ℕ+)) : Prop :=
@@ -81,12 +62,15 @@ theorem isCNFList (l : CNFList E) : IsCNFList l.1 := l.2
 @[simp] theorem one_val [Zero E] : (1 : CNFList E).val = [toLex (0, 1)] := rfl
 
 /-- The predicate that `e` is bigger than the leading exponent in `l`. This is the condition on
-which `⟨e, n⟩ :: l` is a `CNFList`. -/
+which `⟨e, n⟩ :: l` can be a `CNFList`. -/
 def expGT (e : E) (l : CNFList E) : Prop :=
   ∀ e' ∈ l.1.head?, (ofLex e').1 < e
 
 @[simp] theorem expGT_zero (e : E) : expGT e 0 := by simp [expGT]
 instance (e : E) (l) : Decidable (expGT e l) := inferInstanceAs (Decidable (∀ _, _))
+
+theorem expGT.trans_le (h : expGT e l) (he : e ≤ e') : expGT e' l :=
+  fun x hx ↦ (h x hx).trans_le he
 
 theorem _root_.IsCNFList.expGT {x : E ×ₗ ℕ+} {l : List (E ×ₗ ℕ+)} (h : IsCNFList (x :: l)) :
     expGT (ofLex x).1 ⟨l, h.of_cons⟩ := by
@@ -116,7 +100,7 @@ theorem mk_cons_eq_cons {x : E ×ₗ ℕ+} {l : List (E ×ₗ ℕ+)} {h : IsCNFL
   rfl
 
 @[simp]
-theorem expGT_cons_iff {e₁ e₂ : E} {l : CNFList E} (h : expGT e₂ l) (n : ℕ+) :
+theorem expGT_cons_iff {e₁ e₂ : E} {l : CNFList E} (h : expGT e₂ l) {n : ℕ+} :
     expGT e₁ (cons h n) ↔ e₂ < e₁ := by
   simp [expGT]
 
@@ -128,9 +112,9 @@ theorem cons_lt_cons_iff {e₁ e₂ : E} {l₁ l₂ : CNFList E}
 
 theorem cons_le_cons_iff {e₁ e₂ : E} {l₁ l₂ : CNFList E}
     {h₁ : expGT e₁ l₁} {h₂ : expGT e₂ l₂} {n₁ n₂ : ℕ+} :
-    cons h₁ n₁ ≤ cons h₂ n₂ ↔
-      toLex (e₁, n₁) < toLex (e₂, n₂) ∨ toLex (e₁, n₁) = toLex (e₂, n₂) ∧ l₁ ≤ l₂ := by
-  convert List.cons_le_cons_iff (a := toLex (e₁, n₁)) (b := toLex (e₂, n₂))
+    cons h₁ n₁ ≤ cons h₂ n₂ ↔ toLex (e₁, n₁) < toLex (e₂, n₂) ∨ e₁ = e₂ ∧ n₁ = n₂ ∧ l₁ ≤ l₂ := by
+  apply List.cons_le_cons_iff.trans
+  simp [and_assoc]
 
 /-- A recursion principle on `CNFList.cons`. -/
 @[elab_as_elim]
@@ -152,72 +136,124 @@ theorem consRecOn_cons {p : CNFList E → Sort*} (zero : p 0)
     consRecOn (.cons h n) zero cons = cons _ _ h n (consRecOn l zero cons) :=
   by rw [consRecOn.eq_def]; rfl
 
+/-- The `CNFList` corresponding to `ω ^ e * n`. -/
+def single (e : E) (n : ℕ+) : CNFList E :=
+  cons (expGT_zero e) n
+
+@[simp]
+theorem val_single (e : E) (n : ℕ+) : (single e n).val = [toLex (e, n)] :=
+  rfl
+
+@[simp]
+theorem expGT_single_iff {e₁ e₂ : E} {n : ℕ+} : expGT e₁ (single e₂ n) ↔ e₂ < e₁ :=
+  expGT_cons_iff _
+
+-- toLex → single is monotonic
+
+/-! ### Notation instance -/
+
 variable [Notation E]
 
 private def reprAux (l : CNFList E) : Ordinal :=
   (l.1.map fun x ↦ ω ^ Notation.repr (ofLex x).1 * (ofLex x).2).sum
 
-private theorem reprAux_zero : reprAux (E := E) 0 = 0 := rfl
-
 private theorem reprAux_cons {e : E} {l : CNFList E} (h : expGT e l) (n : ℕ+) :
     reprAux (cons h n) = ω ^ Notation.repr e * n + reprAux l :=
   rfl
 
-private theorem reprAux_lt {l : CNFList E} {b : Ordinal}
-    (h : ∀ a ∈ l.1.head?, Notation.repr (ofLex a).1 < b) : reprAux l < ω ^ b := by
-  induction l using consRecOn with
-  | zero => exact opow_pos b omega0_pos
-  | cons e l he n IH =>
-    have hb : Notation.repr e < b := by simpa using h
-    refine b.principal_add_omega0_opow (omega0_opow_mul_nat_lt hb _) (IH fun a ha ↦ ?_)
-    obtain ⟨_ | ⟨c, l⟩, _⟩ := l
-    · contradiction
-    · rw [List.head?_cons, Option.mem_def, Option.some.injEq] at ha
-      obtain rfl := ha
-      rw [mk_cons_eq_cons, expGT_cons_iff] at he
-      exact (Notation.repr_lt_repr.2 he).trans hb
+private theorem le_reprAux_cons {l : CNFList E} (h : expGT e l) (n : ℕ+) :
+    ω ^ Notation.repr e ≤ reprAux (cons h n) :=
+  le_add_of_le_left <| le_mul_of_one_le_right' (mod_cast n.one_le)
 
-theorem strictMono_reprAux : StrictMono (reprAux (E := E)) := by
-  intro l m h
-  induction m using consRecOn with
-  | zero => simp at h
+private theorem reprAux_lt' {l : CNFList E} {o : Ordinal}
+    (h : ∀ x ∈ l.1.head?, Notation.repr (ofLex x).1 < o) :
+    reprAux l < ω ^ o := by
+  induction l using consRecOn with
+  | zero => exact opow_pos _ omega0_pos
+  | cons e' l he' n IH =>
+    simp at h
+    apply principal_add_omega0_opow
+    · exact omega0_opow_mul_nat_lt h n
+    · exact IH fun x hx ↦ (Notation.repr_strictMono (he' x hx)).trans h
+
+private theorem expGT.reprAux_lt {l : CNFList E} (h : expGT e l) :
+    reprAux l < ω ^ Notation.repr e :=
+  reprAux_lt' (by simpa [expGT] using h)
+
+private theorem expGT_iff_reprAux_lt {l : CNFList E} :
+    expGT e l ↔ reprAux l < ω ^ Notation.repr e where
+  mp := expGT.reprAux_lt
+  mpr h := by
+    induction l using consRecOn with
+    | zero => exact expGT_zero e
+    | cons e' l he' n IH =>
+      rw [expGT_cons_iff]
+      exact Notation.repr_lt_repr.1 <| (opow_lt_opow_iff_right one_lt_omega0).1 <|
+        (le_reprAux_cons _ _).trans_lt h
+
+private theorem reprAux_lt (l : CNFList E) : reprAux l < ω ^ Notation.top E :=
+  reprAux_lt' fun _ _ ↦ Notation.repr_lt_top _
+
+private theorem strictMono_reprAux : StrictMono (reprAux (E := E)) := by
+  intro l m hlm
+  induction m using consRecOn generalizing l with
+  | zero => simp at hlm
   | cons e' m he' k IH' =>
     induction l using consRecOn with
     | zero =>
-      apply lt_of_lt_of_le (Ordinal.mul_pos _ _) (le_add_right _ _)
+      apply (Ordinal.mul_pos _ _).trans_le (le_add_right _ _)
       · exact opow_pos _ omega0_pos
       · exact_mod_cast k.pos
     | cons e l he n IH =>
-      simp [reprAux]
-      sorry
+      simp_rw [reprAux_cons]
+      obtain (h | ⟨rfl, rfl, h⟩) := cons_lt_cons_iff.1 hlm
+      · calc
+          _ < ω ^ Notation.repr e * (n + 1) := by
+            rw [mul_add_one, add_lt_add_iff_left]
+            exact he.reprAux_lt
+          _ ≤ ω ^ Notation.repr e' * k := by
+            obtain (h | ⟨rfl, h⟩) := Prod.Lex.toLex_lt_toLex.1 h
+            · apply (lt_of_lt_of_le _ (le_mul_of_one_le_right' (mod_cast k.one_le))).le
+              simpa [reprAux] using ((expGT_single_iff (n := n.1.succPNat)).2 h).reprAux_lt
+            · exact mul_le_mul_left' (mod_cast h.nat_succ_le) _
+          _ ≤ _ := le_self_add
+      · simp_all
 
-  /-induction l with
-  | nil => exact opow_pos b omega0_pos
-  | cons c l IH =>
-    have hc : Notation.repr c.1 < b := by simpa using h
-    refine b.principal_add_omega0_opow (omega0_opow_mul_nat_lt hc _) (IH (fun a ha ↦ ?_) H.of_cons)
-    cases l with
-    | nil => contradiction
-    | cons d l =>
-      rw [List.head?_cons, Option.mem_def, Option.some.injEq] at ha
-      obtain rfl := ha
-      rw [IsCNFList.cons_cons] at H
-      exact (Notation.repr_lt_repr.2 H.1).trans hc-/
+private theorem mem_range_reprAux_of_lt {o} (h : o < ω ^ Notation.top E) :
+    o ∈ Set.range (reprAux (E := E)) := by
+  induction o using CNFRec ω with
+  | H0 => use 0; rfl
+  | H o ho IH =>
+    obtain ⟨e, he⟩ := Notation.mem_range_repr_iff_lt.2 <| (lt_opow_iff_log_lt one_lt_omega0 ho).1 h
+    obtain ⟨n, hn⟩ := lt_omega0.1 (div_opow_log_lt o one_lt_omega0)
+    obtain ⟨l, hl⟩ := IH ((mod_opow_log_lt_self ω ho).trans h)
+    have h : expGT e l := by
+      rw [expGT_iff_reprAux_lt, hl, ← he]
+      apply mod_lt _ (opow_ne_zero _ omega0_ne_zero)
+    refine ⟨cons h ⟨n, ?_⟩, ?_⟩
+    · rw [← Nat.cast_lt (α := Ordinal), ← hn, Nat.cast_zero]
+      exact div_opow_log_pos _ ho
+    · rw [reprAux_cons, he, PNat.mk_coe, ← hn, hl, div_add_mod]
 
-#exit
+private theorem range_reprAux : Set.range (reprAux (E := E)) = Set.Iio (ω ^ Notation.top E) := by
+  ext o
+  refine ⟨?_, mem_range_reprAux_of_lt⟩
+  rintro ⟨l, rfl⟩
+  exact reprAux_lt l
 
-
-  #exit
-
+/-- If `E` is an ordinal notation, then `CNFList E` is as well, by evaluating
+`ω ^ e₀ * n₀ + ω ^ e₁ * n₁ + ⋯` in the obvious manner. -/
+@[simps! repr_top]
 noncomputable instance [Notation E] : Notation (CNFList E) where
-  repr := by
-    refine ⟨(OrderEmbedding.ofStrictMono (reprAux ∘ Subtype.val) ?_).ltEmbedding,
-      ω ^ Notation.top E, ?_⟩
-    · intro x y h
-      sorry
-    · sorry
+  repr := ⟨(OrderEmbedding.ofStrictMono _ strictMono_reprAux).ltEmbedding, ω ^ Notation.top E,
+    Set.ext_iff.1 range_reprAux⟩
   repr_zero := List.sum_nil
   repr_one := by simp [reprAux]
+
+@[simp]
+theorem repr_cons {e : E} {l : CNFList E} (h : expGT e l) (n : ℕ+) :
+    Notation.repr (cons h n) = ω ^ Notation.repr e * n + Notation.repr l :=
+  rfl
 
 #exit
 end CNFList

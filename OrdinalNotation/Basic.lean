@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Violeta Hernández Palacios
 -/
 import Mathlib.SetTheory.Ordinal.Exponential
+import OrdinalNotation.Mathlib.Lemmas
 
 /-!
 # Ordinal notations
@@ -20,7 +21,7 @@ namespace Ordinal
 
 /-! ### Notation class -/
 
-/-- An ordinal notation is a principal segment of the ordinals with a decidable ordering.
+/-- An ordinal notation is a principal segment of the ordinals with decidable ordering.
 
 Usually, one first constructs a larger type of terms, of which a certain subtype of "normal forms"
 satisfies the appropriate conditions. -/
@@ -29,6 +30,12 @@ class Notation (α : Type*) [LinearOrder α] extends Zero α, One α where
   repr : α <i Ordinal.{0}
   repr_zero : repr 0 = 0 := by simp
   repr_one : repr 1 = 1 := by simp
+
+/-- An ordinal notation on `α` may be extended to `WithTop α`. -/
+instance [LinearOrder α] [Notation α] : Notation (WithTop α) where
+  repr := Notation.repr.withTop
+  repr_zero := Notation.repr_zero
+  repr_one := Notation.repr_one
 
 namespace Notation
 
@@ -54,6 +61,8 @@ variable [LinearOrder α] [Notation α]
 /-- The smallest ordinal not represented by an ordinal notation. -/
 def top (α : Type*) [LinearOrder α] [h : Notation α] : Ordinal.{0} := h.repr.top
 
+theorem repr_strictMono : StrictMono (repr : α → _) := repr.strictMono
+theorem repr_monotone : Monotone (repr : α → _) := repr.monotone
 theorem repr_le_repr : repr x ≤ repr y ↔ x ≤ y := repr.le_iff_le
 theorem repr_lt_repr : repr x < repr y ↔ x < y := repr.lt_iff_lt
 theorem repr_inj : repr x = repr y ↔ x = y := repr.inj
