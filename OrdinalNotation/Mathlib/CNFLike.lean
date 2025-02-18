@@ -5,6 +5,36 @@ import Init.Data.List
 
 universe u
 
+-- https://github.com/leanprover-community/mathlib4/pull/21339
+section
+variable {α : Type*}
+
+instance (priority := 1100) List.instLE' [LT α] : LE (List α) := ⟨List.le⟩
+instance (priority := 1100) List.instLT' [LT α] : LT (List α) := ⟨List.lt⟩
+
+-- TODO: we should unify the `Std` relation typeclasses with their Mathlib counterparts
+-- `IsIrrefl`, `IsAsymm`, etc.
+instance [Preorder α] : @Std.Irrefl α (· < ·) := ⟨lt_irrefl⟩
+instance [Preorder α] : @Std.Asymm α (· < ·) := ⟨fun _ _ ↦ lt_asymm⟩
+instance [LinearOrder α] : @Std.Antisymm α (¬ · < ·) :=
+  ⟨by simpa using fun _ _ ↦ ge_antisymm⟩
+instance [LinearOrder α] : @Trans α α α (¬ · < ·) (¬ · < ·) (¬ · < ·) :=
+  ⟨by simp; exact fun h₁ h₂ ↦ le_trans h₂ h₁⟩
+instance [LinearOrder α] : @Std.Total α (¬ · < ·) :=
+  ⟨by simpa using fun _ _ ↦ le_total _ _⟩
+
+instance (priority := 1100) [LinearOrder α] : LinearOrder (List α) where
+  le_refl := List.lex_irrefl lt_irrefl
+  le_trans _ _ _ := List.le_trans
+  le_total := List.le_total
+  le_antisymm _ _ := List.le_antisymm
+  decidableLE := inferInstanceAs (DecidableRel (¬ · > ·))
+  lt_iff_le_not_le a b := by simpa [← not_le] using List.le_of_lt (α := α)
+  max a b := if a ≤ b then b else a
+  min a b := if a ≤ b then a else b
+
+end
+
 open Ordinal Set
 
 section Lists
@@ -44,7 +74,7 @@ instance [Zero E] : One (CNFList E) := ⟨⟨[toLex (0, 1)], .singleton _⟩⟩
 instance : LinearOrder (CNFList E) := Subtype.instLinearOrder _
 
 @[simp] theorem zero_le (l : CNFList E) : 0 ≤ l := List.nil_le l.1
-@[simp] theorem not_lt_zero (l : CNFList E) : ¬ l < 0 := l.not_lt_nil
+@[simp] theorem not_lt_zero (l : CNFList E) : ¬ l < 0 := List.not_lt_nil l.1
 
 theorem isCNFList (l : CNFList E) : IsCNFList l.1 := l.2
 @[simp] theorem zero_val : (0 : CNFList E).val = [] := rfl
@@ -98,12 +128,10 @@ theorem cons_lt_cons_iff {e₁ e₂ : E} {l₁ l₂ : CNFList E}
 
 theorem cons_le_cons_iff {e₁ e₂ : E} {l₁ l₂ : CNFList E}
     {h₁ : expGT e₁ l₁} {h₂ : expGT e₂ l₂} {n₁ n₂ : ℕ+} :
-    cons h₁ n₁ ≤ cons h₂ n₂ ↔ toLex (e₁, n₁) < toLex (e₂, n₂) ∨ toLex (e₁, n₁) = toLex (e₂, n₂) ∧ l₁ ≤ l₂ := by
-  convert List.cons_le_cons_iff (a := toLex (e₁, n₁)) (b := toLex (e₂, n₂)) (l₁ := l₁.1) (l₂ := l₂.1)
-  rw [cons, cons, Subtype.mk_le_mk]
-  rfl
+    cons h₁ n₁ ≤ cons h₂ n₂ ↔
+      toLex (e₁, n₁) < toLex (e₂, n₂) ∨ toLex (e₁, n₁) = toLex (e₂, n₂) ∧ l₁ ≤ l₂ := by
+  convert List.cons_le_cons_iff (a := toLex (e₁, n₁)) (b := toLex (e₂, n₂))
 
-#exit
 /-- A recursion principle on `CNFList.cons`. -/
 @[elab_as_elim]
 def consRecOn {p : CNFList E → Sort*} (l : CNFList E) (zero : p 0)
@@ -123,8 +151,6 @@ theorem consRecOn_cons {p : CNFList E → Sort*} (zero : p 0)
     (cons : ∀ e l (h : expGT e l) n, p l → p (cons h n)) {e l} (h : expGT e l) (n : ℕ+) :
     consRecOn (.cons h n) zero cons = cons _ _ h n (consRecOn l zero cons) :=
   by rw [consRecOn.eq_def]; rfl
-
-#exit
 
 variable [Notation E]
 
@@ -163,6 +189,7 @@ theorem strictMono_reprAux : StrictMono (reprAux (E := E)) := by
       · exact_mod_cast k.pos
     | cons e l he n IH =>
       simp [reprAux]
+      sorry
 
   /-induction l with
   | nil => exact opow_pos b omega0_pos
