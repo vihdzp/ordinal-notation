@@ -31,12 +31,6 @@ class Notation (α : Type*) [LinearOrder α] extends Zero α, One α where
   eval_zero : eval 0 = 0 := by simp
   eval_one : eval 1 = 1 := by simp
 
-/-- An ordinal notation on `α` may be extended to `WithTop α`. -/
-instance [LinearOrder α] [Notation α] : Notation (WithTop α) where
-  eval := Notation.eval.withTop
-  eval_zero := Notation.eval_zero
-  eval_one := Notation.eval_one
-
 namespace Notation
 
 attribute [simp] eval_zero eval_one
@@ -67,11 +61,13 @@ theorem eval_le_eval : eval x ≤ eval y ↔ x ≤ y := eval.le_iff_le
 theorem eval_lt_eval : eval x < eval y ↔ x < y := eval.lt_iff_lt
 theorem eval_inj : eval x = eval y ↔ x = y := eval.inj
 theorem eval_lt_top (x : α) : eval x < top α := eval.lt_top x
+theorem range_eval : range (eval : α → _) = Set.Iio (top α) := eval.range_eq_Iio_top
 
-theorem range_eval {o : Ordinal} : range (eval : α → _) = Set.Iio (top α) :=
-  eval.range_eq_Iio_top
 theorem mem_range_eval_iff_lt {o : Ordinal} : o ∈ range (eval : α → _) ↔ o < top α :=
   eval.mem_range_iff_rel' o
+
+theorem mem_range_eval_of_le {o} {x : α} : o ≤ eval x → o ∈ Set.range (eval : α → _) :=
+  eval.mem_range_of_le
 
 -- We can use `WellFoundedLT.conditionallyCompleteLinearOrderBot` to (nonconstructibly) define
 -- infima and suprema.
@@ -85,6 +81,11 @@ theorem isSuccLimit_top [NoMaxOrder α] : IsSuccLimit (top α) := by
   exact (ha.ge_of_gt hc).not_lt (eval_lt_top c)
 
 /-! ### Lawful operation classes -/
+
+/-- An ordinal notation with a correct cast into naturals. -/
+class LawfulNatCast (α : Type*) [LinearOrder α] [Notation α] [NatCast α] where
+  eval_natCast (n : ℕ) : eval (n : α) = n
+export LawfulNatCast (eval_natCast)
 
 /-- An ordinal notation with a correct addition operation. -/
 class LawfulAdd (α : Type*) [LinearOrder α] [Notation α] [Add α] where
@@ -111,10 +112,26 @@ class LawfulPow (α : Type*) [LinearOrder α] [Notation α] [Pow α α] where
   eval_pow (x y : α) : eval (x ^ y) = eval x ^ eval y
 export LawfulPow (eval_pow)
 
-attribute [simp] eval_add eval_sub eval_mul eval_div eval_pow
+attribute [simp] eval_natCast eval_add eval_sub eval_mul eval_div eval_pow
 
 section Add
 variable [LinearOrder α] [Notation α] [Add α] [LawfulAdd α]
+
+instance : AddMonoidWithOne α where
+  add_assoc a b c := by rw [← eval_inj, eval_add]; simp [add_assoc]
+  zero_add a := by rw [← eval_inj, eval_add]; simp
+  add_zero a := by rw [← eval_inj, eval_add]; simp
+  nsmul := nsmulRec
+
+instance : CanonicallyOrderedAdd α where
+  exists_add_of_le {a b} h := by
+    obtain ⟨c, hc⟩ := mem_range_eval_of_le (Ordinal.sub_le_self (eval b) (eval a))
+    use c
+    rw [← eval_inj, eval_add, hc, Ordinal.add_sub_cancel_of_le]
+    simpa
+  le_self_add a b := by
+    rw [← eval_le_eval, eval_add]
+    exact le_self_add
 
 instance instNoMaxOrderOfAdd : NoMaxOrder α where
   exists_gt a := by
@@ -132,6 +149,29 @@ def toSuccAddOrder (α : Type*) [LinearOrder α] [Notation α] [Add α] [LawfulA
   exact ⟨fun _ ↦ rfl⟩
 
 end Add
+
+/-! ### Examples -/
+
+/-! #### Extending a notation by one element -/
+
+/-- An ordinal notation on `α` may be extended to `WithTop α`. -/
+instance [LinearOrder α] [Notation α] : Notation (WithTop α) where
+  eval := eval.withTop
+  eval_zero := eval_zero
+  eval_one := eval_one
+
+/-! #### The natural numbers-/
+
+/-- The naturals can be seen as an ordinal notation up to `ω`. -/
+instance : Notation ℕ where
+  eval := PrincipalSeg.natCast_ordinal
+
+instance : LawfulNatCast ℕ where eval_natCast _ := rfl
+instance : LawfulAdd ℕ where eval_add := Nat.cast_add
+instance : LawfulSub ℕ where eval_sub := Ordinal.natCast_sub
+instance : LawfulMul ℕ where eval_mul := Ordinal.natCast_mul
+instance : LawfulDiv ℕ where eval_div := Ordinal.natCast_div
+instance : LawfulPow ℕ where eval_pow := Ordinal.natCast_opow
 
 end Notation
 end Ordinal

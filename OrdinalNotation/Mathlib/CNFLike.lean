@@ -14,7 +14,9 @@ objective is to implement all (most?) other ordinal notations in this repository
 
 universe u
 
-open Ordinal Notation Set
+open Set
+
+namespace Ordinal.Notation
 
 section Lists
 variable {E : Type u} {e e' : E} [LinearOrder E]
@@ -58,8 +60,8 @@ instance : LinearOrder (CNFList E) := Subtype.instLinearOrder _
 @[simp] theorem not_lt_zero (l : CNFList E) : ¬ l < 0 := List.not_lt_nil l.1
 
 theorem isCNFList (l : CNFList E) : IsCNFList l.1 := l.2
-@[simp] theorem zero_val : (0 : CNFList E).val = [] := rfl
-@[simp] theorem one_val [Zero E] : (1 : CNFList E).val = [toLex (0, 1)] := rfl
+@[simp] theorem val_zero : (0 : CNFList E).val = [] := rfl
+@[simp] theorem val_one [Zero E] : (1 : CNFList E).val = [toLex (0, 1)] := rfl
 
 /-- The predicate that `e` is bigger than the leading exponent in `l`. This is the condition on
 which `⟨e, n⟩ :: l` can be a `CNFList`. -/
@@ -72,22 +74,25 @@ instance (e : E) (l) : Decidable (expGT e l) := inferInstanceAs (Decidable (∀ 
 theorem expGT.trans_le (h : expGT e l) (he : e ≤ e') : expGT e' l :=
   fun x hx ↦ (h x hx).trans_le he
 
-theorem _root_.IsCNFList.expGT {x : E ×ₗ ℕ+} {l : List (E ×ₗ ℕ+)} (h : IsCNFList (x :: l)) :
-    expGT (ofLex x).1 ⟨l, h.of_cons⟩ := by
+theorem _root_.Ordinal.Notation.IsCNFList.expGT {x : E ×ₗ ℕ+} {l : List (E ×ₗ ℕ+)}
+    (h : IsCNFList (x :: l)) : expGT (ofLex x).1 ⟨l, h.of_cons⟩ := by
   cases l with
   | nil => exact expGT_zero _
   | cons a l =>
     rw [IsCNFList.cons_cons] at h
     simpa [CNFList.expGT] using h.1
 
-/-- Appends an item to a `CNFList`, given that the exponent is larger than the largest exponent of
-the original list. -/
-def cons {e : E} {l : CNFList E} (h : expGT e l) (n : ℕ+) : CNFList E := by
-  refine ⟨toLex (e, n) :: l.1, ?_⟩
+theorem expGT.isCNFList {l : CNFList E} (h : expGT e l) (n : ℕ+) :
+    IsCNFList (toLex (e, n) :: l.1) := by
   obtain ⟨_ | ⟨a, l⟩, hl⟩ := l
   · simp
   · rw [IsCNFList.cons_cons]
     exact ⟨h _ rfl, hl⟩
+
+/-- Appends an item to a `CNFList`, given that the exponent is larger than the largest exponent of
+the original list. -/
+def cons {e : E} {l : CNFList E} (h : expGT e l) (n : ℕ+) : CNFList E :=
+  ⟨toLex (e, n) :: l.1, h.isCNFList n⟩
 
 @[simp]
 theorem val_cons {e : E} {l : CNFList E} (h : expGT e l) (n : ℕ+) :
@@ -96,7 +101,7 @@ theorem val_cons {e : E} {l : CNFList E} (h : expGT e l) (n : ℕ+) :
 
 @[simp]
 theorem mk_cons_eq_cons {x : E ×ₗ ℕ+} {l : List (E ×ₗ ℕ+)} {h : IsCNFList (x :: l)} :
-    ⟨x :: l, h⟩ = cons h.expGT x.2 :=
+    ⟨x :: l, h⟩ = cons h.expGT (ofLex x).2 :=
   rfl
 
 @[simp]
@@ -163,6 +168,8 @@ theorem single_zero [Zero E] (n : ℕ+) : single (0 : E) n = n.1 := by
 -- toLex → single is monotonic
 
 /-! ### Notation instance -/
+
+section Notation
 
 variable [Notation E]
 
@@ -269,17 +276,140 @@ theorem eval_cons {e : E} {l : CNFList E} (h : expGT e l) (n : ℕ+) :
 theorem eval_single (e : E) (n : ℕ+) : eval (single e n) = ω ^ eval e * n := by
   simp [single]
 
-@[simp]
-theorem eval_natCast : ∀ n : ℕ, eval (n : CNFList E) = n
-  | 0 => rfl
-  | n + 1 => by apply (eval_single _ _).trans; simp
-
 theorem le_eval_cons {l : CNFList E} (h : expGT e l) (n : ℕ+) : ω ^ eval e ≤ eval (cons h n) :=
   le_evalAux_cons h n
 
-theorem expGT_iff_eval_lt {l : CNFList E} : expGT e l ↔ eval l < ω ^ eval e := expGT_iff_evalAux_lt
-theorem eval_lt_opow_top (l : CNFList E) : evalAux l < ω ^ Notation.top E := evalAux_lt_opow_top l
+theorem expGT_iff_eval_lt {l : CNFList E} : expGT e l ↔ eval l < ω ^ eval e :=
+  expGT_iff_evalAux_lt
+
 alias ⟨expGT.eval_lt, _⟩ := expGT_iff_eval_lt
+
+theorem eval_cons_lt (he : e < e') (h : expGT e l) : eval (cons h n) < ω ^ eval e' := by
+  apply expGT.eval_lt
+  simpa
+
+theorem eval_lt_opow_top (l : CNFList E) : evalAux l < ω ^ Notation.top E :=
+  evalAux_lt_opow_top l
+
+instance : LawfulNatCast (CNFList E) where
+  eval_natCast n := match n with
+    | 0 => rfl
+    | n + 1 => by apply (eval_single _ _).trans; simp
+
+end Notation
+
+/-! ### Addition -/
+
+section Add
+
+/-- We make this private as we don't yet prove this gives a valid `CNFList` for `CNFList` inputs. -/
+private def addAux : List (E ×ₗ ℕ+) → List (E ×ₗ ℕ+) → List (E ×ₗ ℕ+)
+  | [] , l => l
+  | a :: l, [] => a :: l
+  | a :: l, b :: m =>
+    match cmp (ofLex a).1 (ofLex b).1 with
+    | .lt => b :: m
+    | .eq => toLex ((ofLex b).1, (ofLex a).2 + (ofLex b).2) :: m
+    | .gt => a :: addAux l (b :: m)
+
+private theorem nil_addAux (l : List (E ×ₗ ℕ+)) : addAux [] l = l := rfl
+private theorem addAux_nil (l : List (E ×ₗ ℕ+)) : addAux l [] = l := by cases l <;> rfl
+
+private theorem addAux_cons_cons (a b : E ×ₗ ℕ+) (l m : List (E ×ₗ ℕ+)) :
+    addAux (a :: l) (b :: m) = match cmp (ofLex a).1 (ofLex b).1 with
+      | .lt => b :: m
+      | .eq => toLex ((ofLex b).1, (ofLex a).2 + (ofLex b).2) :: m
+      | .gt => a :: addAux l (b :: m) := by
+  rfl
+
+private theorem expGT_addAux {l m : CNFList E} (hl : expGT e l) (hm : expGT e m)
+    (H : IsCNFList (addAux l.1 m.1)) : expGT e ⟨addAux l.1 m.1, H⟩ := by
+  induction l using consRecOn with
+  | zero => exact hm
+  | cons e l h n IH =>
+    induction m using consRecOn with
+    | zero => exact hl
+    | cons e' m h' k =>
+      dsimp [expGT, addAux_cons_cons]
+      split <;> simp_all
+
+private theorem isCNFList_addAux (l m : CNFList E) : IsCNFList (addAux l.1 m.1) := by
+  induction l using consRecOn with
+  | zero => exact m.2
+  | cons e l h n IH =>
+    induction m using consRecOn with
+    | zero => rw [val_zero, addAux_nil]; exact CNFList.isCNFList _
+    | cons e' m h' k =>
+      dsimp [addAux_cons_cons]
+      split
+      · exact CNFList.isCNFList (cons h' _)
+      · exact CNFList.isCNFList (cons h' _)
+      · apply (expGT_addAux h _ IH).isCNFList
+        simp_all
+
+instance : Add (CNFList E) where
+  add l m := ⟨_, isCNFList_addAux l m⟩
+
+instance : AddZeroClass (CNFList E) where
+  zero_add _ := rfl
+  add_zero l := Subtype.ext (addAux_nil l.1)
+
+theorem expGT_add {l m : CNFList E} (hl : expGT e l) (hm : expGT e m) : expGT e (l + m) :=
+  expGT_addAux hl hm _
+
+private theorem cons_add_cons' (hl : expGT e l) (n : ℕ+) (hm : expGT e' m) (k : ℕ+) :
+    (cons hl n + cons hm k).1 = match cmp e e' with
+      | .lt => (cons hm k).1
+      | .eq => toLex (e', n + k) :: m.1
+      | .gt => toLex (e, n) :: (l + cons hm k).1 :=
+  rfl
+
+theorem cons_add_cons (hl : expGT e l) (n : ℕ+) (hm : expGT e' m) (k : ℕ+) :
+    cons hl n + cons hm k = match he : cmp e e' with
+      | .lt => cons hm k
+      | .eq => cons hm (n + k)
+      | .gt => cons (l := l + cons hm k) (expGT_add hl (by simpa using he)) n := by
+  rw [Subtype.eq_iff, cons_add_cons']
+  aesop (add simp [lt_asymm])
+
+theorem cons_add_cons_of_lt (he : e < e') (hl : expGT e l) (n : ℕ+) (hm : expGT e' m) (k : ℕ+) :
+    cons hl n + cons hm k = cons hm k := by
+  rw [cons_add_cons]
+  split <;> rename_i heq <;> rw [he.cmp_eq_lt] at heq <;> contradiction
+
+theorem cons_add_cons_of_eq (he : e = e') (hl : expGT e l) (n : ℕ+) (hm : expGT e' m) (k : ℕ+) :
+    cons hl n + cons hm k = cons hm (n + k) := by
+  rw [cons_add_cons]
+  split <;> rename_i heq <;> rw [he.cmp_eq_eq] at heq <;> contradiction
+
+theorem cons_add_cons_of_gt (he : e' < e) (hl : expGT e l) (n : ℕ+) (hm : expGT e' m) (k : ℕ+) :
+    cons hl n + cons hm k = cons (l := l + cons hm k) (expGT_add hl (by simpa using he)) n := by
+  rw [cons_add_cons]
+  split <;> rename_i heq <;> rw [he.cmp_eq_gt] at heq <;> contradiction
+
+@[simp]
+theorem cons_add_cons_eq (hl : expGT e l) (n : ℕ+) (hm : expGT e m) (k : ℕ+) :
+    cons hl n + cons hm k = cons hm (n + k) :=
+  cons_add_cons_of_eq rfl ..
+
+instance [Notation E] : LawfulAdd (CNFList E) where
+  eval_add l m := by
+    induction l using consRecOn with
+    | zero => simp
+    | cons e l h n IH =>
+      induction m using consRecOn with
+      | zero => simp
+      | cons e' m h' k IH' =>
+        obtain he | rfl | he := lt_trichotomy e e'
+        · rw [cons_add_cons_of_lt he]
+          exact (add_absorp (eval_cons_lt he _) (le_eval_cons _ _)).symm
+        · rw [cons_add_cons_eq, eval_cons, eval_cons, eval_cons, add_assoc, add_absorp h.eval_lt,
+            ← add_assoc, PNat.add_coe, Nat.cast_add, mul_add]
+          exact le_eval_cons h' _
+        · rw [cons_add_cons_of_gt he, eval_cons]
+          simp_rw [IH, eval_cons, add_assoc]
+
+end Add
 
 end CNFList
 
@@ -310,3 +440,4 @@ noncomputable instance : Notation α where
   eval := equivList.toInitialSeg.transPrincipal eval
 
 end CNFLike
+end Ordinal.Notation

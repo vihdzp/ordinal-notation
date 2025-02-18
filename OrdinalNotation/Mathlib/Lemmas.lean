@@ -88,6 +88,18 @@ theorem not_isBot_succ [LinearOrder α] [SuccOrder α] [Nontrivial α] (x : α) 
   fun h ↦ not_isMin_succ x h.isMin
 
 @[simps!]
+def PrincipalSeg.natCast_ordinal : ℕ <i Ordinal where
+  toFun n := n
+  inj' := CharZero.cast_injective
+  map_rel_iff' := Nat.cast_lt
+  top := .omega0
+  mem_range_iff_rel' := by simp [eq_comm, Ordinal.lt_omega0]
+
+@[simp]
+theorem PrincipalSeg.natCast_ordinal_apply (n : ℕ) : PrincipalSeg.natCast_ordinal n = n :=
+  rfl
+
+@[simps!]
 def PrincipalSeg.withTopCoe [Preorder α] : α <i WithTop α := by
   refine ⟨OrderEmbedding.withTopCoe.ltEmbedding, ⊤, fun x ↦ ?_⟩
   change x ∈ Set.range WithTop.some ↔ _
