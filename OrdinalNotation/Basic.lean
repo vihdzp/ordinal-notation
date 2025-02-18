@@ -69,6 +69,14 @@ theorem mem_range_eval_iff_lt {o : Ordinal} : o ∈ range (eval : α → _) ↔ 
 theorem mem_range_eval_of_le {o} {x : α} : o ≤ eval x → o ∈ Set.range (eval : α → _) :=
   eval.mem_range_of_le
 
+instance : OrderBot α where
+  bot := 0
+  bot_le x := by
+    rw [← eval_le_eval]
+    exact eval_zero.trans_le (Ordinal.zero_le _)
+
+@[simp] theorem bot_eq_zero : (⊥ : α) = 0 := rfl
+
 -- We can use `WellFoundedLT.conditionallyCompleteLinearOrderBot` to (nonconstructibly) define
 -- infima and suprema.
 instance : WellFoundedLT α := eval.isWellFounded
@@ -115,12 +123,12 @@ export LawfulPow (eval_pow)
 attribute [simp] eval_natCast eval_add eval_sub eval_mul eval_div eval_pow
 
 section Add
-variable [LinearOrder α] [Notation α] [Add α] [LawfulAdd α]
+variable [Add α] [LawfulAdd α]
 
 instance : AddMonoidWithOne α where
   add_assoc a b c := by rw [← eval_inj, eval_add]; simp [add_assoc]
-  zero_add a := by rw [← eval_inj, eval_add]; simp
-  add_zero a := by rw [← eval_inj, eval_add]; simp
+  zero_add a := by rw [← eval_inj]; simp
+  add_zero a := by rw [← eval_inj]; simp
   nsmul := nsmulRec
 
 instance : CanonicallyOrderedAdd α where
@@ -149,6 +157,20 @@ def toSuccAddOrder (α : Type*) [LinearOrder α] [Notation α] [Add α] [LawfulA
   exact ⟨fun _ ↦ rfl⟩
 
 end Add
+
+section Sub
+variable [Sub α] [LawfulSub α]
+
+@[simp]
+theorem sub_eq_zero_iff_le {a b : α} : a - b = 0 ↔ a ≤ b := by
+  rw [← eval_inj]
+  simp [Ordinal.sub_eq_zero_iff_le]
+
+@[simp] theorem sub_zero (a : α) : a - 0 = a := by rw [← eval_inj]; simp
+@[simp] theorem zero_sub (a : α) : 0 - a = 0 := by simpa using bot_le (a := a)
+@[simp] theorem sub_self (a : α) : a - a = 0 := by simp
+
+end Sub
 
 /-! ### Examples -/
 

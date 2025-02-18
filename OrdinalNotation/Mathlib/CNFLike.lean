@@ -52,6 +52,8 @@ def CNFList (E : Type u) [LinearOrder E] : Type u :=
 
 namespace CNFList
 
+@[ext] theorem ext {l m : CNFList E} : l.val = m.val → l = m := Subtype.ext
+
 instance : Zero (CNFList E) := ⟨⟨[], .nil⟩⟩
 instance [Zero E] : One (CNFList E) := ⟨⟨[toLex (0, 1)], .singleton _⟩⟩
 instance : LinearOrder (CNFList E) := Subtype.instLinearOrder _
@@ -63,8 +65,8 @@ theorem isCNFList (l : CNFList E) : IsCNFList l.1 := l.2
 @[simp] theorem val_zero : (0 : CNFList E).val = [] := rfl
 @[simp] theorem val_one [Zero E] : (1 : CNFList E).val = [toLex (0, 1)] := rfl
 
-/-- The predicate that `e` is bigger than the leading exponent in `l`. This is the condition on
-which `⟨e, n⟩ :: l` can be a `CNFList`. -/
+/-- The predicate that `e` is bigger than the leading exponent in `l` (if it exists). This is the
+condition on which `⟨e, n⟩ :: l` can be a `CNFList`. -/
 def expGT (e : E) (l : CNFList E) : Prop :=
   ∀ e' ∈ l.1.head?, (ofLex e').1 < e
 
@@ -114,6 +116,24 @@ theorem cons_lt_cons_iff {e₁ e₂ : E} {l₁ l₂ : CNFList E}
     cons h₁ n₁ < cons h₂ n₂ ↔ toLex (e₁, n₁) < toLex (e₂, n₂) ∨ e₁ = e₂ ∧ n₁ = n₂ ∧ l₁ < l₂ := by
   apply List.cons_lt_cons_iff.trans
   simp [and_assoc]
+
+theorem cons_lt_cons_fst {e₁ e₂ : E} {l₁ l₂ : CNFList E}
+    {h₁ : expGT e₁ l₁} {h₂ : expGT e₂ l₂} {n₁ n₂ : ℕ+} (h : e₁ < e₂) :
+    cons h₁ n₁ < cons h₂ n₂ := by
+  rw [cons_lt_cons_iff, Prod.Lex.toLex_lt_toLex]
+  tauto
+
+theorem cons_lt_cons_snd {l₁ l₂ : CNFList E}
+    {h₁ : expGT e l₁} {h₂ : expGT e l₂} {n₁ n₂ : ℕ+} (h : n₁ < n₂) :
+    cons h₁ n₁ < cons h₂ n₂ := by
+  rw [cons_lt_cons_iff, Prod.Lex.toLex_lt_toLex]
+  tauto
+
+theorem cons_lt_cons_thd {l₁ l₂ : CNFList E}
+    {h₁ : expGT e l₁} {h₂ : expGT e l₂} {n : ℕ+} (h : l₁ < l₂) :
+    cons h₁ n < cons h₂ n := by
+  rw [cons_lt_cons_iff, Prod.Lex.toLex_lt_toLex]
+  tauto
 
 theorem cons_le_cons_iff {e₁ e₂ : E} {l₁ l₂ : CNFList E}
     {h₁ : expGT e₁ l₁} {h₂ : expGT e₂ l₂} {n₁ n₂ : ℕ+} :
@@ -216,7 +236,7 @@ private theorem strictMono_evalAux : StrictMono (evalAux (E := E)) := by
   intro l m hlm
   induction m using consRecOn generalizing l with
   | zero => simp at hlm
-  | cons e' m he' k IH' =>
+  | cons e' m he' k =>
     induction l using consRecOn with
     | zero =>
       apply (Ordinal.mul_pos _ _).trans_le (le_add_right _ _)
@@ -304,7 +324,7 @@ section Add
 
 /-- We make this private as we don't yet prove this gives a valid `CNFList` for `CNFList` inputs. -/
 private def addAux : List (E ×ₗ ℕ+) → List (E ×ₗ ℕ+) → List (E ×ₗ ℕ+)
-  | [] , l => l
+  | [], l => l
   | a :: l, [] => a :: l
   | a :: l, b :: m =>
     match cmp (ofLex a).1 (ofLex b).1 with
@@ -312,10 +332,9 @@ private def addAux : List (E ×ₗ ℕ+) → List (E ×ₗ ℕ+) → List (E ×�
     | .eq => toLex ((ofLex b).1, (ofLex a).2 + (ofLex b).2) :: m
     | .gt => a :: addAux l (b :: m)
 
-private theorem nil_addAux (l : List (E ×ₗ ℕ+)) : addAux [] l = l := rfl
 private theorem addAux_nil (l : List (E ×ₗ ℕ+)) : addAux l [] = l := by cases l <;> rfl
 
-private theorem addAux_cons_cons (a b : E ×ₗ ℕ+) (l m : List (E ×ₗ ℕ+)) :
+private theorem cons_addAux_cons (a b : E ×ₗ ℕ+) (l m : List (E ×ₗ ℕ+)) :
     addAux (a :: l) (b :: m) = match cmp (ofLex a).1 (ofLex b).1 with
       | .lt => b :: m
       | .eq => toLex ((ofLex b).1, (ofLex a).2 + (ofLex b).2) :: m
@@ -330,7 +349,7 @@ private theorem expGT_addAux {l m : CNFList E} (hl : expGT e l) (hm : expGT e m)
     induction m using consRecOn with
     | zero => exact hl
     | cons e' m h' k =>
-      dsimp [expGT, addAux_cons_cons]
+      dsimp [expGT, cons_addAux_cons]
       split <;> simp_all
 
 private theorem isCNFList_addAux (l m : CNFList E) : IsCNFList (addAux l.1 m.1) := by
@@ -340,19 +359,25 @@ private theorem isCNFList_addAux (l m : CNFList E) : IsCNFList (addAux l.1 m.1) 
     induction m using consRecOn with
     | zero => rw [val_zero, addAux_nil]; exact CNFList.isCNFList _
     | cons e' m h' k =>
-      dsimp [addAux_cons_cons]
+      dsimp [cons_addAux_cons]
       split
-      · exact CNFList.isCNFList (cons h' _)
-      · exact CNFList.isCNFList (cons h' _)
-      · apply (expGT_addAux h _ IH).isCNFList
-        simp_all
+      on_goal 3 => apply (expGT_addAux h _ IH).isCNFList; simp_all
+      all_goals exact (cons h' _).isCNFList
 
+/-- We define addition on `CNFList E` recursively, so that:
+
+* If `e < e'`, then `(ω ^ e * n + l) + (ω ^ e' * k + m) = ω ^ e * k + m`.
+* If `e = e'`, then `(ω ^ e * n + l) + (ω ^ e' * k + m) = ω ^ e * (n + k) + m`.
+* If `e > e'`, then `(ω ^ e * n + l) + (ω ^ e' * k + m) = ω ^ e * n + (l + (ω ^ e' * k + m))`.
+
+If `E` is an ordinal notation, then addition on `CNFList E` is lawful.
+-/
 instance : Add (CNFList E) where
   add l m := ⟨_, isCNFList_addAux l m⟩
 
 instance : AddZeroClass (CNFList E) where
   zero_add _ := rfl
-  add_zero l := Subtype.ext (addAux_nil l.1)
+  add_zero l := ext (addAux_nil l.1)
 
 theorem expGT_add {l m : CNFList E} (hl : expGT e l) (hm : expGT e m) : expGT e (l + m) :=
   expGT_addAux hl hm _
@@ -399,7 +424,7 @@ instance [Notation E] : LawfulAdd (CNFList E) where
     | cons e l h n IH =>
       induction m using consRecOn with
       | zero => simp
-      | cons e' m h' k IH' =>
+      | cons e' m h' k =>
         obtain he | rfl | he := lt_trichotomy e e'
         · rw [cons_add_cons_of_lt he]
           exact (add_absorp (eval_cons_lt he _) (le_eval_cons _ _)).symm
@@ -410,6 +435,137 @@ instance [Notation E] : LawfulAdd (CNFList E) where
           simp_rw [IH, eval_cons, add_assoc]
 
 end Add
+
+/-! ### Subtraction -/
+
+section Sub
+
+/-- We make this private as we don't yet prove this gives a valid `CNFList` for `CNFList` inputs. -/
+private def subAux : List (E ×ₗ ℕ+) → List (E ×ₗ ℕ+) → List (E ×ₗ ℕ+)
+  | [], _ => []
+  | a :: l, [] => a :: l
+  | a :: l, b :: m =>
+    match cmp (ofLex a).1 (ofLex b).1 with
+    | .lt => []
+    | .eq =>
+      match cmp (ofLex a).2 (ofLex b).2 with
+      | .lt => []
+      | .eq => subAux l m
+      | .gt => toLex ((ofLex a).1, (ofLex a).2 - (ofLex b).2) :: l
+    | .gt => a :: l
+
+private theorem nil_subAux (l : List (E ×ₗ ℕ+)) : subAux [] l = [] := rfl
+private theorem subAux_nil (l : List (E ×ₗ ℕ+)) : subAux l [] = l := by cases l <;> rfl
+
+private theorem cons_subAux_cons (a b : E ×ₗ ℕ+) (l m : List (E ×ₗ ℕ+)) :
+    subAux (a :: l) (b :: m) = match cmp (ofLex a).1 (ofLex b).1 with
+      | .lt => []
+      | .eq =>
+        match cmp (ofLex a).2 (ofLex b).2 with
+        | .lt => []
+        | .eq => subAux l m
+        | .gt => toLex ((ofLex a).1, (ofLex a).2 - (ofLex b).2) :: l
+      | .gt => a :: l :=
+  rfl
+
+private theorem isCNFList_subAux (l m : CNFList E) : IsCNFList (subAux l.1 m.1) := by
+  induction l using consRecOn generalizing m with
+  | zero => exact .nil
+  | cons e l h n IH =>
+    induction m using consRecOn with
+    | zero => rw [val_zero, subAux_nil]; exact CNFList.isCNFList _
+    | cons e' m h' k IH' =>
+      dsimp [cons_subAux_cons]
+      have := fun n ↦ (cons h n).isCNFList
+      aesop
+
+/-- We define subtraction on `CNFList E` so that, if `l ≤ m`, then `l + (m - l) = m`.
+
+If `E` is an ordinal notation, then subtraction on `CNFList E` is lawful. -/
+instance : Sub (CNFList E) where
+  sub l m := ⟨_, isCNFList_subAux l m⟩
+
+private theorem zero_sub' (l : CNFList E) : 0 - l = 0 := rfl
+private theorem sub_zero' (l : CNFList E) : l - 0 = l := ext (subAux_nil l.1)
+
+private theorem cons_sub_cons' (hl : expGT e l) (n : ℕ+) (hm : expGT e' m) (k : ℕ+) :
+    (cons hl n - cons hm k).1 = match cmp e e' with
+      | .lt => []
+      | .eq =>
+        match cmp n k with
+        | .lt => []
+        | .eq => (l - m).1
+        | .gt => toLex (e, n - k) :: l.1
+      | .gt => (cons hl n).1 :=
+  rfl
+
+theorem cons_sub_cons (hl : expGT e l) (n : ℕ+) (hm : expGT e' m) (k : ℕ+) :
+    cons hl n - cons hm k = match cmp e e' with
+      | .lt => 0
+      | .eq =>
+        match cmp n k with
+        | .lt => 0
+        | .eq => l - m
+        | .gt => cons hl (n - k)
+      | .gt => cons hl n := by
+  rw [Subtype.eq_iff, cons_sub_cons']
+  aesop
+
+theorem cons_sub_cons_of_lt (he : e < e') (hl : expGT e l) (n : ℕ+) (hm : expGT e' m) (k : ℕ+) :
+    cons hl n - cons hm k = 0 := by
+  rw [cons_sub_cons, he.cmp_eq_lt]
+
+theorem cons_sub_cons_of_eq (he : e = e') (hl : expGT e l) (n : ℕ+) (hm : expGT e' m) (k : ℕ+) :
+    cons hl n - cons hm k = match cmp n k with
+      | .lt => 0
+      | .eq => l - m
+      | .gt => cons hl (n - k) := by
+  rw [cons_sub_cons, he.cmp_eq_eq]
+
+theorem cons_sub_cons_of_gt (he : e' < e) (hl : expGT e l) (n : ℕ+) (hm : expGT e' m) (k : ℕ+) :
+    cons hl n - cons hm k = cons hl n := by
+  rw [cons_sub_cons, he.cmp_eq_gt]
+
+theorem cons_sub_cons_eq_of_lt {n k : ℕ+} (hn : n < k) (hl : expGT e l) (hm : expGT e m) :
+    cons hl n - cons hm k = 0 := by
+  rw [cons_sub_cons_of_eq rfl, hn.cmp_eq_lt]
+
+theorem cons_sub_cons_eq_of_eq {n k : ℕ+} (hn : n = k) (hl : expGT e l) (hm : expGT e m) :
+    cons hl n - cons hm k = l - m := by
+  rw [cons_sub_cons_of_eq rfl, hn.cmp_eq_eq]
+
+theorem cons_sub_cons_eq_of_gt {n k : ℕ+} (hn : k < n) (hl : expGT e l) (hm : expGT e m) :
+    cons hl n - cons hm k = cons hl (n - k) := by
+  rw [cons_sub_cons_of_eq rfl, hn.cmp_eq_gt]
+
+@[simp]
+theorem cons_sub_cons_eq_eq (hl : expGT e l) (hm : expGT e m) (n : ℕ+) :
+    cons hl n - cons hm n = l - m := by
+  rw [cons_sub_cons_eq_of_eq rfl]
+
+instance [Notation E] : LawfulSub (CNFList E) where
+  eval_sub l m := by
+    induction l using consRecOn generalizing m with
+    | zero => simp [zero_sub']
+    | cons e l h n IH =>
+      induction m using consRecOn with
+      | zero => simp [sub_zero']
+      | cons e' m h' k =>
+        obtain he | rfl | he := lt_trichotomy e e'
+        · rw [cons_sub_cons_of_lt he, eval_zero, eq_comm, Ordinal.sub_eq_zero_iff_le]
+          exact (eval_strictMono (cons_lt_cons_fst he)).le
+        · obtain hn | rfl | hn := lt_trichotomy n k
+          · rw [cons_sub_cons_eq_of_lt hn, eval_zero, eq_comm, Ordinal.sub_eq_zero_iff_le]
+            exact (eval_strictMono (cons_lt_cons_snd hn)).le
+          · rw [cons_sub_cons_eq_eq, eval_cons, eval_cons, Ordinal.add_sub_add_cancel, IH]
+          · rw [cons_sub_cons_eq_of_gt hn, eq_comm]
+            apply sub_eq_of_add_eq
+            rw [← eval_add, cons_add_cons_eq, PNat.add_sub_of_lt hn]
+        · rw [cons_sub_cons_of_gt he, eq_comm]
+          apply sub_eq_of_add_eq
+          rwa [← eval_add, cons_add_cons_of_lt]
+
+end Sub
 
 end CNFList
 
