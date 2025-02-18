@@ -141,6 +141,25 @@ instance : CanonicallyOrderedAdd α where
     rw [← eval_le_eval, eval_add]
     exact le_self_add
 
+instance : AddLeftMono α where
+  elim a b c := by rw [← eval_le_eval, ← eval_le_eval (x := a + b)]; simp
+instance : AddLeftReflectLE α where
+  elim a b c := by rw [← eval_le_eval, ← eval_le_eval (x := b)]; simp
+instance : AddLeftStrictMono α where
+  elim a b c := by rw [← eval_lt_eval, ← eval_lt_eval (x := a + b)]; simp
+instance : AddLeftReflectLT α where
+  elim a b c := by rw [← eval_lt_eval, ← eval_lt_eval (x := b)]; simp
+
+instance : AddRightMono α where
+  elim a b c := by
+    rw [← eval_le_eval, ← eval_le_eval (x := b + a)]
+    simpa [- PrincipalSeg.le_iff_le] using (add_le_add_right · _)
+
+instance : AddRightReflectLT α where
+  elim a b c := by
+    rw [← eval_lt_eval, ← eval_lt_eval (x := b)]
+    simpa [- PrincipalSeg.lt_iff_lt] using lt_of_add_lt_add_right
+
 instance instNoMaxOrderOfAdd : NoMaxOrder α where
   exists_gt a := by
     use a + 1
@@ -171,6 +190,18 @@ theorem sub_eq_zero_iff_le {a b : α} : a - b = 0 ↔ a ≤ b := by
 @[simp] theorem sub_self (a : α) : a - a = 0 := by simp
 
 end Sub
+
+section Mul
+variable [Mul α] [LawfulMul α]
+
+instance : MulZeroClass α where
+  zero_mul a := by rw [← eval_inj]; simp
+  mul_zero a := by rw [← eval_inj]; simp
+
+instance [Add α] [LawfulAdd α] : LeftDistribClass α where
+  left_distrib a b c := by rw [← eval_inj]; simp [mul_add]
+
+end Mul
 
 /-! ### Examples -/
 
