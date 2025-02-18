@@ -148,6 +148,18 @@ theorem val_single (e : E) (n : ℕ+) : (single e n).val = [toLex (e, n)] :=
 theorem expGT_single_iff {e₁ e₂ : E} {n : ℕ+} : expGT e₁ (single e₂ n) ↔ e₂ < e₁ :=
   expGT_cons_iff _
 
+/-- The cast from natural numbers is defined as `n = single 0 n`. -/
+instance [Zero E] : NatCast (CNFList E) where
+  natCast n := n.recOn 0 (fun n _ ↦ single 0 n.succPNat)
+
+@[simp, norm_cast] theorem natCast_zero [Zero E] : (0 : ℕ) = (0 : CNFList E) := rfl
+@[simp, norm_cast] theorem natCast_one [Zero E] : (1 : ℕ) = (1 : CNFList E) := rfl
+
+@[simp]
+theorem single_zero [Zero E] (n : ℕ+) : single (0 : E) n = n.1 := by
+  rw [← n.succPNat_natPred]
+  rfl
+
 -- toLex → single is monotonic
 
 /-! ### Notation instance -/
@@ -244,8 +256,7 @@ private theorem mem_range_evalAux_iff (o) :
 `ω ^ e₀ * n₀ + ω ^ e₁ * n₁ + ⋯` in the obvious manner. -/
 @[simps! eval_top]
 noncomputable instance [Notation E] : Notation (CNFList E) where
-  eval := ⟨(OrderEmbedding.ofStrictMono _ strictMono_evalAux).ltEmbedding, ω ^ Notation.top E,
-    mem_range_evalAux_iff⟩
+  eval := ⟨(OrderEmbedding.ofStrictMono _ strictMono_evalAux).ltEmbedding, _, mem_range_evalAux_iff⟩
   eval_zero := List.sum_nil
   eval_one := by simp [evalAux]
 
@@ -257,6 +268,11 @@ theorem eval_cons {e : E} {l : CNFList E} (h : expGT e l) (n : ℕ+) :
 @[simp]
 theorem eval_single (e : E) (n : ℕ+) : eval (single e n) = ω ^ eval e * n := by
   simp [single]
+
+@[simp]
+theorem eval_natCast : ∀ n : ℕ, eval (n : CNFList E) = n
+  | 0 => rfl
+  | n + 1 => by apply (eval_single _ _).trans; simp
 
 theorem le_eval_cons {l : CNFList E} (h : expGT e l) (n : ℕ+) : ω ^ eval e ≤ eval (cons h n) :=
   le_evalAux_cons h n
