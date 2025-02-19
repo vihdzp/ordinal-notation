@@ -85,6 +85,9 @@ theorem mul_omega0_opow {a b} (ha : a ≠ 0) (hb : b ≠ 0) : a * ω ^ b = ω ^ 
   conv_lhs => rw [← hb']
   rw [opow_add, opow_one, ← mul_assoc, mul_omega0' ha, ← opow_add, succ_eq_add_one, add_assoc, hb']
 
+theorem div_eq_iff {a b c : Ordinal} (hb : b ≠ 0) : a / b = c ↔ b * c ≤ a ∧ a < b * (c + 1) := by
+  rw [← Ordinal.le_div hb, ← Ordinal.div_lt hb, lt_add_one_iff, ← le_antisymm_iff, eq_comm]
+
 end Ordinal
 
 theorem PNat.one_lt_of_ne {n : ℕ+} (hn : n ≠ 1) : 1 < n := by

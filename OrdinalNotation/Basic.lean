@@ -201,6 +201,10 @@ theorem sub_pos_iff_lt {a b : α} : 0 < a - b ↔ b < a := by
 @[simp] theorem zero_sub (a : α) : 0 - a = 0 := by simpa using bot_le (a := a)
 @[simp] theorem sub_self (a : α) : a - a = 0 := by simp
 
+theorem add_sub_cancel_of_le [Add α] [LawfulAdd α] {a b : α} (h : a ≤ b) : a + (b - a) = b := by
+  rw [← eval_inj]
+  simp [Ordinal.add_sub_cancel_of_le (eval_monotone h)]
+
 end Sub
 
 section Mul
@@ -225,6 +229,10 @@ theorem zero_div (a : α) : 0 / a = 0 := by
 @[simp]
 theorem div_zero (a : α) : a / 0 = 0 := by
   rw [← eval_inj]; simp
+
+theorem div_eq_zero_of_lt {a b : α} (h : a < b) : a / b = 0 := by
+  rw [← eval_inj, eval_div, eval_zero]
+  exact Ordinal.div_eq_zero_of_lt (eval_strictMono h)
 
 end Div
 

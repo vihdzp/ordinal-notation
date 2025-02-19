@@ -83,7 +83,7 @@ instance [Zero E] : NatCast (CNFList E) where
 @[simp, norm_cast] theorem natCast_zero [Zero E] : (0 : ℕ) = (0 : CNFList E) := rfl
 @[simp, norm_cast] theorem natCast_one [Zero E] : (1 : ℕ) = (1 : CNFList E) := rfl
 
-@[simp] theorem val_PNat (n : ℕ+) [Zero E] : (n.val : CNFList E).1 = [toLex (0, n)] := by
+@[simp] theorem val_pNat (n : ℕ+) [Zero E] : (n.val : CNFList E).1 = [toLex (0, n)] := by
   rw [← n.succPNat_natPred]; rfl
 
 @[simp]
@@ -318,14 +318,17 @@ noncomputable instance [Notation E] : Notation (CNFList E) where
   eval_zero := List.sum_nil
   eval_one := by simp [evalAux]
 
-@[simp 900]
 theorem eval_cons {e : E} {l : CNFList E} (h : expGT e l) (n : ℕ+) :
     eval (cons e n l h) = ω ^ eval e * n + eval l :=
   rfl
 
+theorem eval_ne_zero {e : E} {l : CNFList E} (h : expGT e l) (n : ℕ+) :
+    eval (cons e n l h) ≠ 0 := by
+  simp
+
 @[simp]
 theorem eval_single (e : E) (n : ℕ+) : eval (single e n) = ω ^ eval e * n := by
-  rw [single_eq_cons]; simp
+  simp [single_eq_cons, eval_cons]
 
 theorem le_eval_cons {l : CNFList E} (h : expGT e l) (n : ℕ+) : ω ^ eval e ≤ eval (cons e n l h) :=
   le_evalAux_cons h n
@@ -407,19 +410,14 @@ instance : AddZeroClass (CNFList E) where
 theorem expGT_add {l m : CNFList E} (hl : expGT e l) (hm : expGT e m) : expGT e (l + m) :=
   expGT_addAux hl hm _
 
-private theorem cons_add_cons' (hl : expGT e l) (n : ℕ+) (hm : expGT f m) (k : ℕ+) :
-    (cons e n l hl + cons f k m hm).1 = match cmp e f with
-      | .lt => (cons f k m hm).1
-      | .eq => toLex (f, n + k) :: m.1
-      | .gt => toLex (e, n) :: (l + cons f k m hm).1 :=
-  rfl
-
-theorem cons_add_cons (hl : expGT e l) (n : ℕ+) (hm : expGT f m) (k : ℕ+) :
+private theorem cons_add_cons (hl : expGT e l) (n : ℕ+) (hm : expGT f m) (k : ℕ+) :
     cons e n l hl + cons f k m hm = match he : cmp e f with
       | .lt => cons f k m hm
       | .eq => cons f (n + k) m hm
       | .gt => cons e n (l + cons f k m hm) (expGT_add hl (by simpa using he)) := by
-  rw [Subtype.eq_iff, cons_add_cons']
+  rw [Subtype.eq_iff]
+  show addAux _ _ = _
+  dsimp [addAux]
   aesop (add simp [lt_asymm])
 
 theorem cons_add_cons_of_lt (he : e < f) (hl : expGT e l) (n : ℕ+) (hm : expGT f m) (k : ℕ+) :
@@ -427,21 +425,16 @@ theorem cons_add_cons_of_lt (he : e < f) (hl : expGT e l) (n : ℕ+) (hm : expGT
   rw [cons_add_cons]
   split <;> rename_i heq <;> rw [he.cmp_eq_lt] at heq <;> contradiction
 
-theorem cons_add_cons_of_eq (he : e = f) (hl : expGT e l) (n : ℕ+) (hm : expGT f m) (k : ℕ+) :
-    cons e n l hl + cons f k m hm = cons f (n + k) m hm := by
-  rw [cons_add_cons]
-  split <;> rename_i heq <;> rw [he.cmp_eq_eq] at heq <;> contradiction
+@[simp]
+theorem cons_add_cons_eq (hl : expGT e l) (n : ℕ+) (hm : expGT e m) (k : ℕ+) :
+    cons e n l hl + cons e k m hm = cons e (n + k) m hm := by
+  rw [cons_add_cons]; aesop
 
 theorem cons_add_cons_of_gt (he : f < e) (hl : expGT e l) (n : ℕ+) (hm : expGT f m) (k : ℕ+) :
     cons e n l hl + cons f k m hm =
       cons _ n (l + cons f k m hm) (expGT_add hl (by simpa using he)) := by
   rw [cons_add_cons]
   split <;> rename_i heq <;> rw [he.cmp_eq_gt] at heq <;> contradiction
-
-@[simp]
-theorem cons_add_cons_eq (hl : expGT e l) (n : ℕ+) (hm : expGT e m) (k : ℕ+) :
-    cons e n l hl + cons e k m hm = cons e (n + k) m hm :=
-  cons_add_cons_of_eq rfl ..
 
 instance [Notation E] : LawfulAdd (CNFList E) where
   eval_add l m := by
@@ -461,7 +454,7 @@ instance [Notation E] : LawfulAdd (CNFList E) where
           simp_rw [IH, eval_cons, add_assoc]
 
 theorem cons_eq_add [Notation E] (hl : expGT e l) (n : ℕ+) : cons e n l hl = single e n + l := by
-  rw [← eval_inj]; simp
+  rw [← eval_inj]; simp [eval_cons]
 
 end Add
 
@@ -513,18 +506,7 @@ instance : Sub (CNFList E) where
 private theorem zero_sub' (l : CNFList E) : 0 - l = 0 := rfl
 private theorem sub_zero' (l : CNFList E) : l - 0 = l := ext (subAux_nil l.1)
 
-private theorem cons_sub_cons' (hl : expGT e l) (n : ℕ+) (hm : expGT f m) (k : ℕ+) :
-    (cons e n l hl - cons f k m hm).1 = match cmp e f with
-      | .lt => []
-      | .eq =>
-        match cmp n k with
-        | .lt => []
-        | .eq => (l - m).1
-        | .gt => toLex (e, n - k) :: l.1
-      | .gt => (cons e n l hl).1 :=
-  rfl
-
-theorem cons_sub_cons (hl : expGT e l) (n : ℕ+) (hm : expGT f m) (k : ℕ+) :
+private theorem cons_sub_cons (hl : expGT e l) (n : ℕ+) (hm : expGT f m) (k : ℕ+) :
     cons e n l hl - cons f k m hm = match cmp e f with
       | .lt => 0
       | .eq =>
@@ -533,19 +515,21 @@ theorem cons_sub_cons (hl : expGT e l) (n : ℕ+) (hm : expGT f m) (k : ℕ+) :
         | .eq => l - m
         | .gt => cons e (n - k) l hl
       | .gt => cons e n l hl := by
-  rw [Subtype.eq_iff, cons_sub_cons']
+  rw [Subtype.eq_iff]
+  show subAux _ _ = _
+  dsimp [subAux]
   aesop
 
 theorem cons_sub_cons_of_lt (he : e < f) (hl : expGT e l) (n : ℕ+) (hm : expGT f m) (k : ℕ+) :
     cons e n l hl - cons f k m hm = 0 := by
   rw [cons_sub_cons, he.cmp_eq_lt]
 
-theorem cons_sub_cons_of_eq (he : e = f) (hl : expGT e l) (n : ℕ+) (hm : expGT f m) (k : ℕ+) :
-    cons e n l hl - cons f k m hm = match cmp n k with
+private theorem cons_sub_cons_of_eq (hl : expGT e l) (n : ℕ+) (hm : expGT e m) (k : ℕ+) :
+    cons e n l hl - cons e k m hm = match cmp n k with
       | .lt => 0
       | .eq => l - m
       | .gt => cons e (n - k) l hl := by
-  rw [cons_sub_cons, he.cmp_eq_eq]
+  rw [cons_sub_cons, cmp_self_eq_eq]
 
 theorem cons_sub_cons_of_gt (he : f < e) (hl : expGT e l) (n : ℕ+) (hm : expGT f m) (k : ℕ+) :
     cons e n l hl - cons f k m hm = cons e n l hl := by
@@ -553,20 +537,16 @@ theorem cons_sub_cons_of_gt (he : f < e) (hl : expGT e l) (n : ℕ+) (hm : expGT
 
 theorem cons_sub_cons_eq_of_lt {n k : ℕ+} (hn : n < k) (hl : expGT e l) (hm : expGT e m) :
     cons e n l hl - cons e k m hm = 0 := by
-  rw [cons_sub_cons_of_eq rfl, hn.cmp_eq_lt]
-
-theorem cons_sub_cons_eq_of_eq {n k : ℕ+} (hn : n = k) (hl : expGT e l) (hm : expGT e m) :
-    cons e n l hl - cons e k m hm = l - m := by
-  rw [cons_sub_cons_of_eq rfl, hn.cmp_eq_eq]
-
-theorem cons_sub_cons_eq_of_gt {n k : ℕ+} (hn : k < n) (hl : expGT e l) (hm : expGT e m) :
-    cons e n l hl - cons e k m hm = cons e (n - k) l hl := by
-  rw [cons_sub_cons_of_eq rfl, hn.cmp_eq_gt]
+  rw [cons_sub_cons_of_eq, hn.cmp_eq_lt]
 
 @[simp]
 theorem cons_sub_cons_eq_eq (hl : expGT e l) (hm : expGT e m) (n : ℕ+) :
     cons e n l hl - cons e n m hm = l - m := by
-  rw [cons_sub_cons_eq_of_eq rfl]
+  rw [cons_sub_cons_of_eq, cmp_self_eq_eq]
+
+theorem cons_sub_cons_eq_of_gt {n k : ℕ+} (hn : k < n) (hl : expGT e l) (hm : expGT e m) :
+    cons e n l hl - cons e k m hm = cons e (n - k) l hl := by
+  rw [cons_sub_cons_of_eq, hn.cmp_eq_gt]
 
 instance [Notation E] : LawfulSub (CNFList E) where
   eval_sub l m := by
@@ -668,8 +648,12 @@ theorem cons_mul_cons (hl : expGT e l) (hm : expGT f m) (n k : ℕ+) :
   split <;> rfl
 
 @[simp]
-theorem cons_mul_natCast (hl : expGT e l) (n k : ℕ+) : cons e n l hl * k = cons e (n * k) l hl := by
+theorem cons_mul_pNat (hl : expGT e l) (n k : ℕ+) : cons e n l hl * k = cons e (n * k) l hl := by
   rw [← single_zero, single_eq_cons, cons_mul_cons]; exact if_pos rfl
+
+theorem cons_mul_natCast (hl : expGT e l) (n : ℕ+) {k : ℕ} (hk : 0 < k) :
+    cons e n l hl * k = cons e (n * ⟨k, hk⟩) l hl :=
+  cons_mul_pNat hl n ⟨k, hk⟩
 
 theorem cons_mul_cons_of_ne_zero (hl : expGT e l) (hm : expGT f m) (hf : f ≠ 0) (n k : ℕ+) :
     cons e n l hl * cons f k m hm = cons _ k _ (hl.cons_mul hm n) := by
@@ -684,7 +668,7 @@ instance : LawfulMul (CNFList E) where
       | zero => simp [zero_mul']
       | cons e n l hl =>
         obtain rfl | hf := eq_or_ne f 0
-        · rw [cons_zero, cons_mul_natCast, eval_natCast]
+        · rw [cons_zero, cons_mul_pNat, eval_natCast]
           clear *-
           induction k using PNat.recOn with
           | one => simp
@@ -696,7 +680,7 @@ instance : LawfulMul (CNFList E) where
             log_eq_zero, add_zero]
           · exact_mod_cast nat_lt_omega0 n
           · exact_mod_cast n.ne_zero
-          · simp [-eval_cons]
+          · exact eval_ne_zero hl n
           · simpa
 
 end Mul
@@ -763,6 +747,82 @@ If `E` is an ordinal notation with lawful subtraction, then division on `CNFList
 instance : Div (CNFList E) where
   div l m := ⟨_, isCNFList_divAux l m⟩
 
+private theorem zero_div' (l : CNFList E) : 0 / l = 0 := ext (nil_divAux l.1)
+private theorem div_zero' (l : CNFList E) : l / 0 = 0 := ext (divAux_nil l.1)
+
+private theorem expGT.div_cons (hl : expGT e l) (hm : expGT f m) (n : ℕ+) :
+    expGT (e - f) (l / cons f n m hm) :=
+  expGT.divAux_cons hl hm _
+
+private theorem cons_div_cons (hl : expGT e l) (n : ℕ+) (hm : expGT f m) (k : ℕ+) :
+    cons e n l hl / cons f k m hm = match cmp e f with
+      | .lt => 0
+      | .eq =>
+        let r := n.val / k.val
+        match if toLex (k * r, m.1) ≤ toLex (n.val, l.1) then r else r - 1 with
+        | 0 => 0
+        | s + 1 => s.succPNat
+      | .gt => cons _ n _ (hl.div_cons hm k) := by
+  apply ext
+  show divAux _ _ = _
+  dsimp [divAux]
+  aesop
+
+theorem cons_div_cons_of_lt (he : e < f) (hl : expGT e l) (n : ℕ+) (hm : expGT f m) (k : ℕ+) :
+    cons e n l hl / cons f k m hm = 0 := by
+  rw [cons_div_cons, he.cmp_eq_lt]
+
+theorem cons_div_cons_of_gt (he : f < e) (hl : expGT e l) (n : ℕ+) (hm : expGT f m) (k : ℕ+) :
+    cons e n l hl / cons f k m hm = cons _ n _ (expGT.div_cons hl hm k) := by
+  rw [cons_div_cons, he.cmp_eq_gt]
+
+private theorem cons_div_cons_eq (hl : expGT e l) (n : ℕ+) (hm : expGT e m) (k : ℕ+) :
+    cons e n l hl / cons e k m hm = let r := n.val / k.val
+      if toLex (k * r, m.1) ≤ toLex (n.val, l.1) then r else r - 1 := by
+  rw [cons_div_cons, cmp_self_eq_eq]
+  aesop
+
+theorem cons_div_cons_eq_of_le (hl : expGT e l) (hm : expGT e m)
+    (h : toLex (k.val * (n.val / k.val), m.1) ≤ toLex (n.val, l.1)) :
+    cons e n l hl / cons e k m hm = (n.val / k.val :) := by
+  simp [cons_div_cons_eq, h]
+
+theorem cons_div_cons_eq_of_lt (hl : expGT e l) (hm : expGT e m)
+    (h : toLex (n.val, l.1) < toLex (k.val * (n.val / k.val), m.1)) :
+    cons e n l hl / cons e k m hm = (n.val / k.val - 1 :) := by
+  simp [cons_div_cons_eq, h.not_le]
+
+instance [Add E] [LawfulAdd E] : LawfulDiv (CNFList E) where
+  eval_div l m := by
+    induction l using consRecOn generalizing m with
+    | zero => simp [zero_div']
+    | cons e n l hl IH =>
+      cases m using consRecOn with
+      | zero => simp [div_zero']
+      | cons f k m hm _ =>
+        obtain he | rfl | he := lt_trichotomy e f
+        · rw [cons_div_cons_of_lt he, eval_zero, eq_comm]
+          exact Ordinal.div_eq_zero_of_lt <| eval_strictMono (cons_lt_cons_fst he)
+        · rw [eq_comm, Ordinal.div_eq_iff (eval_ne_zero hm k)]
+          obtain he | he := le_or_lt (toLex (k.val * (n.val / k.val), m.1)) (toLex (n.val, l.1))
+          · rw [cons_div_cons_eq_of_le _ _ he]
+            obtain hn | hn := lt_or_le n k
+            · have h₁ : n.1 / k.1 = 0 := (Nat.div_eq_zero_iff_lt k.pos).2 hn
+              have h₂ : (n.val : Ordinal.{0}) / (k.val : Ordinal) = 0 := mod_cast h₁
+              simp [h₁, h₂]
+              apply cons_lt_cons_snd hn
+            · sorry
+          · sorry
+        · have : cons f k m hm * single (e - f) n + l = cons e n l hl := by
+            rw [single_eq_cons, cons_mul_cons_of_ne_zero]
+            · simp [add_sub_cancel_of_le he.le, cons_eq_add]
+            · simpa
+          rw [cons_div_cons_of_gt he, ← this, eval_add, eval_mul, Ordinal.mul_add_div, ← IH]
+          · rw [← eval_add, cons_eq_add]
+          · exact eval_ne_zero hm k
+
+
+
 #exit
 end Div
 
@@ -806,11 +866,14 @@ instance : Sub α where sub l m := equivList.symm (equivList l - equivList m)
 theorem sub_def (l m : α) : l - m = equivList.symm (equivList l - equivList m) := rfl
 instance : LawfulSub α where eval_sub l m := by simp [eval_def, sub_def]
 
+section Mul
 variable [Add (Exp α)] [LawfulAdd (Exp α)]
 
 instance : Mul α where mul l m := equivList.symm (equivList l * equivList m)
 theorem mul_def (l m : α) : l * m = equivList.symm (equivList l * equivList m) := rfl
 instance : LawfulMul α where eval_mul l m := by simp [eval_def, mul_def]
+
+end Mul
 
 end CNFLike
 end Ordinal.Notation
