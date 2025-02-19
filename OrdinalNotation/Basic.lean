@@ -179,6 +179,10 @@ instance (α : Type*) [LinearOrder α] [Notation α] [Add α] [LawfulAdd α] : S
     rw [← eval_lt_eval, ← add_one_le_iff, ← @eval_one α, ← eval_add, eval_le_eval]
   ⟨fun _ ↦ rfl⟩
 
+@[simp]
+theorem eval_succ (x : α) : eval (Order.succ x) = eval x + 1 := by
+  rw [succ_eq_add_one, eval_add, eval_one]
+
 end Add
 
 section Sub

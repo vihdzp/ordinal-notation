@@ -86,6 +86,9 @@ instance [Zero E] : NatCast (CNFList E) where
 @[simp] theorem val_pNat (n : ℕ+) [Zero E] : (n.val : CNFList E).1 = [toLex (0, n)] := by
   rw [← n.succPNat_natPred]; rfl
 
+theorem val_natCast (n : ℕ) [Zero E] : (n : CNFList E).1 =
+    match n with | 0 => [] | s + 1 => [toLex (0, s.succPNat)] := by cases n <;> rfl
+
 @[simp]
 theorem single_zero [Zero E] (n : ℕ+) : single (0 : E) n = n.val := by
   rw [← n.succPNat_natPred]
@@ -322,7 +325,7 @@ theorem eval_cons {e : E} {l : CNFList E} (h : expGT e l) (n : ℕ+) :
     eval (cons e n l h) = ω ^ eval e * n + eval l :=
   rfl
 
-theorem eval_ne_zero {e : E} {l : CNFList E} (h : expGT e l) (n : ℕ+) :
+theorem eval_cons_ne_zero {e : E} {l : CNFList E} (h : expGT e l) (n : ℕ+) :
     eval (cons e n l h) ≠ 0 := by
   simp
 
@@ -680,14 +683,50 @@ instance : LawfulMul (CNFList E) where
             log_eq_zero, add_zero]
           · exact_mod_cast nat_lt_omega0 n
           · exact_mod_cast n.ne_zero
-          · exact eval_ne_zero hl n
+          · exact eval_cons_ne_zero hl n
           · simpa
+
+theorem eval_cons_mul_natCast (hl : expGT e l) (n : ℕ+) {k : ℕ} (hk : 0 < k) :
+    eval (cons e n l hl) * k = eval (cons e (n * ⟨k, hk⟩) l hl) := by
+  rw [← cons_mul_natCast hl n hk, eval_mul, eval_natCast]
 
 end Mul
 
 /-! ### Division -/
 
 section Div
+
+/-- The result of `(ω ^ e * n + l) / (ω ^ e * k + m)`, for any sufficiently large `e`. -/
+private def divNatAux (n k : ℕ+) (l m : List (E ×ₗ ℕ+)) : ℕ :=
+  let r := n.val / k.val
+  if toLex (k.val * r, m) ≤ toLex (n.val, l) then r else r - 1
+
+theorem divNatAux_eq {l m : CNFList E} (hl : expGT e l) (hm : expGT e m) (n k : ℕ+)
+    [Notation E] [Add E] [LawfulAdd E] :
+    eval (cons e n l hl) / eval (cons e k m hm) = divNatAux n k l.1 m.1 := by
+  rw [divNatAux, Ordinal.div_eq_iff (eval_cons_ne_zero _ _)]
+  obtain hn | hn := lt_or_le n k
+  · have : n.val / k.val = 0 := (Nat.div_eq_zero_iff_lt k.pos).2 hn
+    simpa [this] using cons_lt_cons_snd hn
+  · have : 1 ≤ n.val / k.val := (Nat.one_le_div_iff k.pos).2 hn
+    split <;> rw [← Nat.cast_add_one, eval_cons_mul_natCast _ _ (Nat.succ_pos _)]
+    · rw [eval_cons_mul_natCast, eval_le_eval, eval_lt_eval]
+      constructor
+      · simp_all [cons_le_cons_iff, Prod.Lex.toLex_lt_toLex, Prod.Lex.toLex_le_toLex,
+          ← PNat.coe_lt_coe, ← PNat.coe_inj]
+      · apply cons_lt_cons_snd
+        simpa using Nat.lt_mul_div_succ n k.pos
+      · simpa
+    · obtain h | h := this.eq_or_lt
+      · simp_all [Prod.Lex.toLex_lt_toLex, cons_lt_cons_iff, ← PNat.coe_lt_coe, ← PNat.coe_inj]
+      · refine ⟨le_of_lt ?_, ?_⟩
+        · rw [eval_cons_mul_natCast _ _ (by simpa), eval_lt_eval]
+          apply cons_lt_cons_snd
+          rw [← PNat.coe_lt_coe]
+          apply lt_of_lt_of_le _ (Nat.mul_div_le _ k)
+          simpa
+        · simp_all [Prod.Lex.toLex_lt_toLex, cons_lt_cons_iff, ← PNat.coe_lt_coe, ← PNat.coe_inj]
+
 variable [Notation E] [Sub E]
 
 /-- We make this private as we don't yet prove this gives a valid `CNFList` for `CNFList` inputs. -/
@@ -696,11 +735,7 @@ private def divAux : List (E ×ₗ ℕ+) → List (E ×ₗ ℕ+) → List (E ×�
   | a :: l, b :: m =>
     match cmp (ofLex a).1 (ofLex b).1 with
     | .lt => []
-    | .eq =>
-      let r := (ofLex a).2.val / (ofLex b).2.val
-      match if toLex ((ofLex b).2 * r, m) ≤ toLex ((ofLex a).2.val, l) then r else r - 1 with
-      | 0 => []
-      | s + 1 => [toLex (0, s.succPNat)]
+    | .eq => (divNatAux (ofLex a).2 (ofLex b).2 l m : CNFList E).1
     | .gt => toLex ((ofLex a).1 - (ofLex b).1, (ofLex a).2) :: divAux l (b :: m)
 
 private theorem nil_divAux (l : List (E ×ₗ ℕ+)) : divAux [] l = [] := by cases l <;> rfl
@@ -713,7 +748,8 @@ private theorem expGT.divAux_cons (hl : expGT e l) (hm : expGT f m)
   induction l using consRecOn with
   | zero => simp [nil_divAux]
   | cons f' k m hm =>
-    dsimp [divAux, expGT]
+    dsimp [divAux, divNatAux, expGT]
+    rw [val_natCast]
     have {a b c : E} (h₁ : a < b) (h₂ : b < c) : b - a < c - a := by
       rw [← eval_lt_eval, eval_sub, eval_sub]
       apply sub_lt_of_lt_add
@@ -732,7 +768,7 @@ private theorem isCNFList_divAux (l m : CNFList E) : IsCNFList (divAux l.1 m.1) 
       dsimp [divAux]
       split
       · exact .nil
-      · split <;> simp
+      · exact CNFList.isCNFList _
       · exact (expGT.divAux_cons hl hm _).isCNFList (l := ⟨_, IH ⟨_, hm.isCNFList k⟩⟩) n
 
 /-- We define division on `CNFList E` recursively, so that `x / 0 = 0 / x = 0` and:
@@ -742,7 +778,8 @@ private theorem isCNFList_divAux (l m : CNFList E) : IsCNFList (divAux l.1 m.1) 
   depending on whether `ω ^ e * (n / k) + l` exceeds `ω ^ f * k + m`.
 * If `e > f`, then `(ω ^ e * n + l) / (ω ^ f * k + m) = ω ^ (e - f) + l / (ω ^ f * k + m)`.
 
-If `E` is an ordinal notation with lawful subtraction, then division on `CNFList E` is lawful.
+If `E` is an ordinal notation with lawful addition and subtraction, then division on `CNFList E` is
+lawful.
 -/
 instance : Div (CNFList E) where
   div l m := ⟨_, isCNFList_divAux l m⟩
@@ -757,40 +794,24 @@ private theorem expGT.div_cons (hl : expGT e l) (hm : expGT f m) (n : ℕ+) :
 private theorem cons_div_cons (hl : expGT e l) (n : ℕ+) (hm : expGT f m) (k : ℕ+) :
     cons e n l hl / cons f k m hm = match cmp e f with
       | .lt => 0
-      | .eq =>
-        let r := n.val / k.val
-        match if toLex (k * r, m.1) ≤ toLex (n.val, l.1) then r else r - 1 with
-        | 0 => 0
-        | s + 1 => s.succPNat
+      | .eq => divNatAux n k l.1 m.1
       | .gt => cons _ n _ (hl.div_cons hm k) := by
   apply ext
   show divAux _ _ = _
   dsimp [divAux]
-  aesop
+  split <;> rfl
 
 theorem cons_div_cons_of_lt (he : e < f) (hl : expGT e l) (n : ℕ+) (hm : expGT f m) (k : ℕ+) :
     cons e n l hl / cons f k m hm = 0 := by
   rw [cons_div_cons, he.cmp_eq_lt]
 
+private theorem cons_div_cons_eq (hl : expGT e l) (n : ℕ+) (hm : expGT e m) (k : ℕ+) :
+    cons e n l hl / cons e k m hm = divNatAux n k l.1 m.1 := by
+  rw [cons_div_cons, cmp_self_eq_eq]
+
 theorem cons_div_cons_of_gt (he : f < e) (hl : expGT e l) (n : ℕ+) (hm : expGT f m) (k : ℕ+) :
     cons e n l hl / cons f k m hm = cons _ n _ (expGT.div_cons hl hm k) := by
   rw [cons_div_cons, he.cmp_eq_gt]
-
-private theorem cons_div_cons_eq (hl : expGT e l) (n : ℕ+) (hm : expGT e m) (k : ℕ+) :
-    cons e n l hl / cons e k m hm = let r := n.val / k.val
-      if toLex (k * r, m.1) ≤ toLex (n.val, l.1) then r else r - 1 := by
-  rw [cons_div_cons, cmp_self_eq_eq]
-  aesop
-
-theorem cons_div_cons_eq_of_le (hl : expGT e l) (hm : expGT e m)
-    (h : toLex (k.val * (n.val / k.val), m.1) ≤ toLex (n.val, l.1)) :
-    cons e n l hl / cons e k m hm = (n.val / k.val :) := by
-  simp [cons_div_cons_eq, h]
-
-theorem cons_div_cons_eq_of_lt (hl : expGT e l) (hm : expGT e m)
-    (h : toLex (n.val, l.1) < toLex (k.val * (n.val / k.val), m.1)) :
-    cons e n l hl / cons e k m hm = (n.val / k.val - 1 :) := by
-  simp [cons_div_cons_eq, h.not_le]
 
 instance [Add E] [LawfulAdd E] : LawfulDiv (CNFList E) where
   eval_div l m := by
@@ -803,30 +824,17 @@ instance [Add E] [LawfulAdd E] : LawfulDiv (CNFList E) where
         obtain he | rfl | he := lt_trichotomy e f
         · rw [cons_div_cons_of_lt he, eval_zero, eq_comm]
           exact Ordinal.div_eq_zero_of_lt <| eval_strictMono (cons_lt_cons_fst he)
-        · rw [eq_comm, Ordinal.div_eq_iff (eval_ne_zero hm k)]
-          obtain he | he := le_or_lt (toLex (k.val * (n.val / k.val), m.1)) (toLex (n.val, l.1))
-          · rw [cons_div_cons_eq_of_le _ _ he]
-            obtain hn | hn := lt_or_le n k
-            · have h₁ : n.1 / k.1 = 0 := (Nat.div_eq_zero_iff_lt k.pos).2 hn
-              have h₂ : (n.val : Ordinal.{0}) / (k.val : Ordinal) = 0 := mod_cast h₁
-              simp [h₁, h₂]
-              apply cons_lt_cons_snd hn
-            · sorry
-          · sorry
+        · rw [cons_div_cons_eq, divNatAux_eq, eval_natCast]
         · have : cons f k m hm * single (e - f) n + l = cons e n l hl := by
             rw [single_eq_cons, cons_mul_cons_of_ne_zero]
             · simp [add_sub_cancel_of_le he.le, cons_eq_add]
             · simpa
           rw [cons_div_cons_of_gt he, ← this, eval_add, eval_mul, Ordinal.mul_add_div, ← IH]
           · rw [← eval_add, cons_eq_add]
-          · exact eval_ne_zero hm k
+          · exact eval_cons_ne_zero hm k
 
-
-
-#exit
 end Div
 
-#exit
 end CNFList
 
 /-! ### CNF-like types -/
