@@ -18,7 +18,6 @@ open Set
 
 namespace Ordinal.Notation
 
-section Lists
 variable {E : Type u} {e f : E} [LinearOrder E]
 
 /-! ### Basic definitions -/
@@ -84,11 +83,11 @@ instance [Zero E] : NatCast (CNFList E) where
 @[simp, norm_cast] theorem natCast_zero [Zero E] : (0 : ℕ) = (0 : CNFList E) := rfl
 @[simp, norm_cast] theorem natCast_one [Zero E] : (1 : ℕ) = (1 : CNFList E) := rfl
 
-@[simp] theorem val_PNat (n : ℕ+) [Zero E] : (PNat.val n : CNFList E).1 = [toLex (0, n)] := by
+@[simp] theorem val_PNat (n : ℕ+) [Zero E] : (n.val : CNFList E).1 = [toLex (0, n)] := by
   rw [← n.succPNat_natPred]; rfl
 
 @[simp]
-theorem single_zero [Zero E] (n : ℕ+) : single (0 : E) n = PNat.val n := by
+theorem single_zero [Zero E] (n : ℕ+) : single (0 : E) n = n.val := by
   rw [← n.succPNat_natPred]
   rfl
 
@@ -367,13 +366,6 @@ private def addAux : List (E ×ₗ ℕ+) → List (E ×ₗ ℕ+) → List (E ×�
 -- private theorem nil_addAux (l : List (E ×ₗ ℕ+)) : addAux [] l = l := rfl
 private theorem addAux_nil (l : List (E ×ₗ ℕ+)) : addAux l [] = l := by cases l <;> rfl
 
-private theorem cons_addAux_cons (a b : E ×ₗ ℕ+) (l m : List (E ×ₗ ℕ+)) :
-    addAux (a :: l) (b :: m) = match cmp (ofLex a).1 (ofLex b).1 with
-      | .lt => b :: m
-      | .eq => toLex ((ofLex b).1, (ofLex a).2 + (ofLex b).2) :: m
-      | .gt => a :: addAux l (b :: m) :=
-  rfl
-
 private theorem expGT_addAux {l m : CNFList E} (hl : expGT e l) (hm : expGT e m)
     (H : IsCNFList (addAux l.1 m.1)) : expGT e ⟨addAux l.1 m.1, H⟩ := by
   cases l using consRecOn with
@@ -382,7 +374,7 @@ private theorem expGT_addAux {l m : CNFList E} (hl : expGT e l) (hm : expGT e m)
     induction m using consRecOn with
     | zero => exact hl
     | cons f m k hm =>
-      dsimp [expGT, cons_addAux_cons]
+      dsimp [expGT, addAux]
       split <;> simp_all
 
 private theorem isCNFList_addAux (l m : CNFList E) : IsCNFList (addAux l.1 m.1) := by
@@ -392,12 +384,12 @@ private theorem isCNFList_addAux (l m : CNFList E) : IsCNFList (addAux l.1 m.1) 
     induction m using consRecOn with
     | zero => rw [val_zero, addAux_nil]; exact CNFList.isCNFList _
     | cons f m k hm =>
-      dsimp [cons_addAux_cons]
+      dsimp [addAux]
       split
       on_goal 3 => apply (expGT_addAux hl _ IH).isCNFList; simp_all
       all_goals exact (cons _ _ _ hm).isCNFList
 
-/-- We define addition on `CNFList E` recursively, so that:
+/-- We define addition on `CNFList E` recursively, so that `x + 0 = 0 + x = x` and:
 
 * If `e < f`, then `(ω ^ e * n + l) + (ω ^ f * k + m) = ω ^ e * k + m`.
 * If `e = f`, then `(ω ^ e * n + l) + (ω ^ f * k + m) = ω ^ e * (n + k) + m`.
@@ -493,17 +485,6 @@ private def subAux : List (E ×ₗ ℕ+) → List (E ×ₗ ℕ+) → List (E ×�
 
 private theorem subAux_nil (l : List (E ×ₗ ℕ+)) : subAux l [] = l := by cases l <;> rfl
 
-private theorem cons_subAux_cons (a b : E ×ₗ ℕ+) (l m : List (E ×ₗ ℕ+)) :
-    subAux (a :: l) (b :: m) = match cmp (ofLex a).1 (ofLex b).1 with
-      | .lt => []
-      | .eq =>
-        match cmp (ofLex a).2 (ofLex b).2 with
-        | .lt => []
-        | .eq => subAux l m
-        | .gt => toLex ((ofLex a).1, (ofLex a).2 - (ofLex b).2) :: l
-      | .gt => a :: l :=
-  rfl
-
 private theorem isCNFList_subAux (l m : CNFList E) : IsCNFList (subAux l.1 m.1) := by
   induction l using consRecOn generalizing m with
   | zero => exact .nil
@@ -511,11 +492,11 @@ private theorem isCNFList_subAux (l m : CNFList E) : IsCNFList (subAux l.1 m.1) 
     cases m using consRecOn with
     | zero => rw [val_zero, subAux_nil]; exact CNFList.isCNFList _
     | cons f k m hm =>
-      dsimp [cons_subAux_cons]
+      dsimp [subAux]
       have := fun n ↦ (cons e n l hl).isCNFList
       aesop
 
-/-- We define subtraction on `CNFList E` recursively, so that:
+/-- We define subtraction on `CNFList E` recursively, so that `x - 0 = x`, `0 - x = 0`, and:
 
 * If `e < f`, then `(ω ^ e * n + l) - (ω ^ f * k + m) = 0`.
 * If `e = f`, then
@@ -626,17 +607,11 @@ private def mulAux : List (E ×ₗ ℕ+) → List (E ×ₗ ℕ+) → List (E ×�
 private theorem nil_mulAux (l : List (E ×ₗ ℕ+)) : mulAux [] l = [] := by cases l <;> rfl
 private theorem mulAux_nil (l : List (E ×ₗ ℕ+)) : mulAux l [] = [] := by cases l <;> rfl
 
-private theorem cons_mulAux_cons (a b : E ×ₗ ℕ+) (l m : List (E ×ₗ ℕ+)) :
-    mulAux (a :: l) (b :: m) = if (ofLex b).1 = 0
-      then toLex ((ofLex a).1, (ofLex a).2 * (ofLex b).2) :: l
-      else toLex ((ofLex a).1 + (ofLex b).1, (ofLex b).2) :: mulAux (a :: l) m :=
-  rfl
-
 variable [LawfulAdd E]
 
 private theorem expGT.cons_mulAux (hl : expGT e l) (hm : expGT f m) {n : ℕ+}
     (H : IsCNFList (mulAux (cons e n l hl).1 m.1)) : expGT (e + f) ⟨_, H⟩ := by
-  induction m using consRecOn <;> aesop (add simp [mulAux_nil, cons_mulAux_cons])
+  induction m using consRecOn <;> aesop (add simp [mulAux_nil, mulAux])
 
 private theorem isCNFList_mulAux (l m : CNFList E) : IsCNFList (mulAux l.1 m.1) := by
   induction l using consRecOn generalizing m with
@@ -645,14 +620,13 @@ private theorem isCNFList_mulAux (l m : CNFList E) : IsCNFList (mulAux l.1 m.1) 
     induction m using consRecOn with
     | zero => simp [mulAux_nil]
     | cons f k m hm IH' =>
-      dsimp [cons_mulAux_cons]
+      dsimp [mulAux]
       split
       · exact hl.isCNFList n
       · exact (expGT.cons_mulAux _ hm _).isCNFList (l := ⟨_, IH'⟩) _
 
-/-- We define multiplication on `CNFList E` recursively, so that:
+/-- We define multiplication on `CNFList E` recursively, so that `x * 0 = 0 * x = 0` and:
 
-* `0 * x` equals `x * 0` equals `0`.
 * For `k : ℕ+`, then `(ω ^ e * n + l) * k = ω ^ e * (n * k) + l`.
 * If `f ≠ 0`, then `(ω ^ e * n + l) * (ω ^ f * k + m) = ω ^ (e + f) * k + (ω ^ e * n + l) * m`.
 
@@ -727,6 +701,72 @@ instance : LawfulMul (CNFList E) where
 
 end Mul
 
+/-! ### Division -/
+
+section Div
+variable [Notation E] [Sub E]
+
+/-- We make this private as we don't yet prove this gives a valid `CNFList` for `CNFList` inputs. -/
+private def divAux : List (E ×ₗ ℕ+) → List (E ×ₗ ℕ+) → List (E ×ₗ ℕ+)
+  | [], _ | _, [] => []
+  | a :: l, b :: m =>
+    match cmp (ofLex a).1 (ofLex b).1 with
+    | .lt => []
+    | .eq =>
+      let r := (ofLex a).2.val / (ofLex b).2.val
+      match if toLex ((ofLex b).2 * r, m) ≤ toLex ((ofLex a).2.val, l) then r else r - 1 with
+      | 0 => []
+      | s + 1 => [toLex (0, s.succPNat)]
+    | .gt => toLex ((ofLex a).1 - (ofLex b).1, (ofLex a).2) :: divAux l (b :: m)
+
+private theorem nil_divAux (l : List (E ×ₗ ℕ+)) : divAux [] l = [] := by cases l <;> rfl
+private theorem divAux_nil (l : List (E ×ₗ ℕ+)) : divAux l [] = [] := by cases l <;> rfl
+
+variable [LawfulSub E]
+
+private theorem expGT.divAux_cons (hl : expGT e l) (hm : expGT f m)
+    (H : IsCNFList (divAux l.1 (cons f k m hm).1)) : expGT (e - f) ⟨_, H⟩ := by
+  induction l using consRecOn with
+  | zero => simp [nil_divAux]
+  | cons f' k m hm =>
+    dsimp [divAux, expGT]
+    have {a b c : E} (h₁ : a < b) (h₂ : b < c) : b - a < c - a := by
+      rw [← eval_lt_eval, eval_sub, eval_sub]
+      apply sub_lt_of_lt_add
+      · rwa [Ordinal.add_sub_cancel_of_le (eval_monotone (h₁.trans h₂).le), eval_lt_eval]
+      · rw [pos_iff_ne_zero, Ordinal.sub_ne_zero_iff_lt, eval_lt_eval]
+        exact h₁.trans h₂
+    aesop
+
+private theorem isCNFList_divAux (l m : CNFList E) : IsCNFList (divAux l.1 m.1) := by
+  induction l using consRecOn generalizing m with
+  | zero => simp [nil_divAux]
+  | cons e n l hl IH =>
+    cases m using consRecOn with
+    | zero => simp [divAux_nil]
+    | cons f k m hm =>
+      dsimp [divAux]
+      split
+      · exact .nil
+      · split <;> simp
+      · exact (expGT.divAux_cons hl hm _).isCNFList (l := ⟨_, IH ⟨_, hm.isCNFList k⟩⟩) n
+
+/-- We define division on `CNFList E` recursively, so that `x / 0 = 0 / x = 0` and:
+
+* If `e < f`, then `(ω ^ e * n + l) / (ω ^ f * k + m) = 0`.
+* If `e = f`, then `(ω ^ e * n + l) / (ω ^ f * k + m)` is either of `n / k` or `n / k - 1`,
+  depending on whether `ω ^ e * (n / k) + l` exceeds `ω ^ f * k + m`.
+* If `e > f`, then `(ω ^ e * n + l) / (ω ^ f * k + m) = ω ^ (e - f) + l / (ω ^ f * k + m)`.
+
+If `E` is an ordinal notation with lawful subtraction, then division on `CNFList E` is lawful.
+-/
+instance : Div (CNFList E) where
+  div l m := ⟨_, isCNFList_divAux l m⟩
+
+#exit
+end Div
+
+#exit
 end CNFList
 
 /-! ### CNF-like types -/
@@ -754,6 +794,23 @@ attribute [simp] equivList_zero equivList_one
 
 noncomputable instance : Notation α where
   eval := equivList.toInitialSeg.transPrincipal eval
+
+theorem eval_def (l : α) : eval l = eval (equivList l) :=
+  InitialSeg.transPrincipal_apply ..
+
+instance : Add α where add l m := equivList.symm (equivList l + equivList m)
+theorem add_def (l m : α) : l + m = equivList.symm (equivList l + equivList m) := rfl
+instance : LawfulAdd α where eval_add l m := by simp [eval_def, add_def]
+
+instance : Sub α where sub l m := equivList.symm (equivList l - equivList m)
+theorem sub_def (l m : α) : l - m = equivList.symm (equivList l - equivList m) := rfl
+instance : LawfulSub α where eval_sub l m := by simp [eval_def, sub_def]
+
+variable [Add (Exp α)] [LawfulAdd (Exp α)]
+
+instance : Mul α where mul l m := equivList.symm (equivList l * equivList m)
+theorem mul_def (l m : α) : l * m = equivList.symm (equivList l * equivList m) := rfl
+instance : LawfulMul α where eval_mul l m := by simp [eval_def, mul_def]
 
 end CNFLike
 end Ordinal.Notation

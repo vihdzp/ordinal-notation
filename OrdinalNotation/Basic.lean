@@ -165,20 +165,19 @@ instance : AddRightReflectLT α where
     rw [← eval_lt_eval, ← eval_lt_eval (x := b)]
     simpa [- PrincipalSeg.lt_iff_lt] using lt_of_add_lt_add_right
 
-instance instNoMaxOrderOfAdd : NoMaxOrder α where
+instance : NoMaxOrder α where
   exists_gt a := by
     use a + 1
     rw [← eval_lt_eval, eval_add, eval_one]
     exact lt_add_one _
 
 /-- An ordinal notation is a `SuccOrder` setting `succ x = x + 1`. -/
-def toSuccAddOrder (α : Type*) [LinearOrder α] [Notation α] [Add α] [LawfulAdd α] :
-    SuccAddOrder α := by
-  letI : SuccOrder α := by
+instance (α : Type*) [LinearOrder α] [Notation α] [Add α] [LawfulAdd α] : SuccAddOrder α :=
+  let _ : SuccOrder α := by
     refine SuccOrder.ofCore (· + 1) ?_ fun a ha ↦ (not_isMax _ ha).elim
     intro a ha b
     rw [← eval_lt_eval, ← add_one_le_iff, ← @eval_one α, ← eval_add, eval_le_eval]
-  exact ⟨fun _ ↦ rfl⟩
+  ⟨fun _ ↦ rfl⟩
 
 end Add
 
@@ -189,6 +188,14 @@ variable [Sub α] [LawfulSub α]
 theorem sub_eq_zero_iff_le {a b : α} : a - b = 0 ↔ a ≤ b := by
   rw [← eval_inj]
   simp [Ordinal.sub_eq_zero_iff_le]
+
+theorem sub_ne_zero_iff_lt {a b : α} : a - b ≠ 0 ↔ b < a := by
+  simp
+
+@[simp]
+theorem sub_pos_iff_lt {a b : α} : 0 < a - b ↔ b < a := by
+  rw [← eval_lt_eval]
+  simp [Ordinal.pos_iff_ne_zero, Ordinal.sub_eq_zero_iff_le]
 
 @[simp] theorem sub_zero (a : α) : a - 0 = a := by rw [← eval_inj]; simp
 @[simp] theorem zero_sub (a : α) : 0 - a = 0 := by simpa using bot_le (a := a)
@@ -207,6 +214,19 @@ instance [Add α] [LawfulAdd α] : LeftDistribClass α where
   left_distrib a b c := by rw [← eval_inj]; simp [mul_add]
 
 end Mul
+
+section Div
+variable [Div α] [LawfulDiv α]
+
+@[simp]
+theorem zero_div (a : α) : 0 / a = 0 := by
+  rw [← eval_inj]; simp
+
+@[simp]
+theorem div_zero (a : α) : a / 0 = 0 := by
+  rw [← eval_inj]; simp
+
+end Div
 
 /-! ### Examples -/
 
