@@ -701,7 +701,7 @@ private def divNatAux (n k : ℕ+) (l m : List (E ×ₗ ℕ+)) : ℕ :=
   let r := n.val / k.val
   if toLex (k.val * r, m) ≤ toLex (n.val, l) then r else r - 1
 
-theorem divNatAux_eq {l m : CNFList E} (hl : expGT e l) (hm : expGT e m) (n k : ℕ+)
+private theorem divNatAux_eq {l m : CNFList E} (hl : expGT e l) (hm : expGT e m) (n k : ℕ+)
     [Notation E] [Add E] [LawfulAdd E] :
     eval (cons e n l hl) / eval (cons e k m hm) = divNatAux n k l.1 m.1 := by
   rw [divNatAux, Ordinal.div_eq_iff (eval_cons_ne_zero _ _)]
@@ -835,6 +835,21 @@ instance [Add E] [LawfulAdd E] : LawfulDiv (CNFList E) where
 
 end Div
 
+section Pow
+variable [Notation E] [Add E] [Mul E]
+
+/-- We make this private as we don't yet prove this gives a valid `CNFList` for `CNFList` inputs. -/
+private def mulAux : List (E ×ₗ ℕ+) → List (E ×ₗ ℕ+) → List (E ×ₗ ℕ+)
+  | [], _ | _, [] => []
+  | a :: l, b :: m => if (ofLex b).1 = 0
+      then toLex ((ofLex a).1, (ofLex a).2 * (ofLex b).2) :: l
+      else toLex ((ofLex a).1 + (ofLex b).1, (ofLex b).2) :: mulAux (a :: l) m
+
+
+
+end Pow
+
+#exit
 end CNFList
 
 /-! ### CNF-like types -/
@@ -882,6 +897,16 @@ theorem mul_def (l m : α) : l * m = equivList.symm (equivList l * equivList m) 
 instance : LawfulMul α where eval_mul l m := by simp [eval_def, mul_def]
 
 end Mul
+
+section Div
+variable [Sub (Exp α)] [LawfulSub (Exp α)]
+
+instance : Div α where div l m := equivList.symm (equivList l / equivList m)
+theorem div_def (l m : α) : l / m = equivList.symm (equivList l / equivList m) := rfl
+instance [Add (Exp α)] [LawfulAdd (Exp α)] : LawfulDiv α where
+  eval_div l m := by simp [eval_def, div_def]
+
+end Div
 
 end CNFLike
 end Ordinal.Notation
