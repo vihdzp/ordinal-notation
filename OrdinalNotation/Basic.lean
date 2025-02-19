@@ -63,6 +63,11 @@ theorem eval_inj : eval x = eval y ↔ x = y := eval.inj
 theorem eval_lt_top (x : α) : eval x < top α := eval.lt_top x
 theorem range_eval : range (eval : α → _) = Set.Iio (top α) := eval.range_eq_Iio_top
 
+@[simp] theorem eval_eq_zero_iff : eval (x : α) = 0 ↔ x = 0 :=
+  eval_zero (α := α) ▸ eval_inj (y := 0)
+@[simp] theorem eval_eq_one_iff : eval (x : α) = 1 ↔ x = 1 :=
+  eval_one (α := α) ▸ eval_inj (y := 1)
+
 theorem mem_range_eval_iff_lt {o : Ordinal} : o ∈ range (eval : α → _) ↔ o < top α :=
   eval.mem_range_iff_rel' o
 

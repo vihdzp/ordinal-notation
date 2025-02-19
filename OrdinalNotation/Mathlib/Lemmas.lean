@@ -68,6 +68,23 @@ theorem isLimit_omega (o : Ordinal) : Ordinal.IsLimit (ω_ o) := by
   rw [← ord_aleph]
   exact isLimit_ord (aleph0_le_aleph _)
 
+-- This generalizes to a multiplicative principal?
+theorem mul_omega0' {a} (ha : a ≠ 0) : a * ω = ω ^ succ (log ω a) := by
+  apply le_antisymm
+  · have : a < ω ^ log ω a * succ (a / (ω ^ log ω a)) := by
+      apply lt_mul_succ_div _ (opow_ne_zero _ omega0_ne_zero)
+    apply (mul_le_mul_right' this.le _).trans
+    rw [mul_assoc, opow_succ,
+      mul_omega0 (succ_pos _) (isLimit_omega0.succ_lt <| div_opow_log_lt _ one_lt_omega0)]
+  · rw [opow_succ]
+    exact mul_le_mul_right' (opow_log_le_self ω ha) _
+
+-- This generalizes to a multiplicative principal?
+theorem mul_omega0_opow {a b} (ha : a ≠ 0) (hb : b ≠ 0) : a * ω ^ b = ω ^ (log ω a + b) := by
+  have hb' := Ordinal.add_sub_cancel_of_le (one_le_iff_ne_zero.2 hb)
+  conv_lhs => rw [← hb']
+  rw [opow_add, opow_one, ← mul_assoc, mul_omega0' ha, ← opow_add, succ_eq_add_one, add_assoc, hb']
+
 end Ordinal
 
 theorem PNat.one_lt_of_ne {n : ℕ+} (hn : n ≠ 1) : 1 < n := by
