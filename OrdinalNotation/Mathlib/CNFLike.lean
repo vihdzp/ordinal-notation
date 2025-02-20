@@ -903,6 +903,8 @@ theorem splitSnd_cons_cons [Add E] [LawfulAdd E] (hl hm) :
 
 end Div
 
+/-! ### Exponentiation -/
+
 section Pow
 variable [Notation E] [Add E] [LawfulAdd E] [Mul E] [LawfulMul E]
 
@@ -990,6 +992,25 @@ instance [Add (Exp α)] [LawfulAdd (Exp α)] : LawfulDiv α where
   eval_div l m := by simp [eval_def, div_def]
 
 end Div
+
+section Split
+-- TODO: this shouldn't require any typeclass instances
+variable [Add (Exp α)] [LawfulAdd (Exp α)] [Sub (Exp α)] [LawfulSub (Exp α)]
+
+instance : Split α where
+  splitFst l := equivList.symm (splitFst (equivList l))
+  splitSnd l := splitSnd (equivList l)
+  eval_splitFst l := by simp [eval_def]
+  splitSnd_eq l := by simp [eval_def, splitSnd_eq]
+
+theorem splitFst_def (l : α) : splitFst l = equivList.symm (splitFst (equivList l)) := rfl
+theorem splitSnd_def (l : α) : splitSnd l = splitSnd (equivList l) := rfl
+
+end Split
+
+section Pow
+
+end Pow
 
 end CNFLike
 end Ordinal.Notation
