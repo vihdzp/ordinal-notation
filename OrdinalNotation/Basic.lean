@@ -24,16 +24,23 @@ namespace Ordinal
 /-- An ordinal notation is a principal segment of the ordinals with decidable ordering.
 
 Usually, one first constructs a larger type of terms, of which a certain subtype of "normal forms"
-satisfies the appropriate conditions. -/
+satisfies the appropriate conditions.
+
+As a convenient nontriviality condition, we require that an ordinal notation is able to represent
+ordinals at least as big as `ω`. -/
 class Notation (α : Type*) [LinearOrder α] extends Zero α, One α where
   /-- Represent a term as an ordinal. -/
   eval : α <i Ordinal.{0}
+  /-- The term corresponding to the first infinite ordinal `ω`. -/
+  protected omega : α
+
   eval_zero : eval 0 = 0 := by simp
   eval_one : eval 1 = 1 := by simp
+  eval_omega : eval omega = ω := by simp
 
 namespace Notation
 
-attribute [simp] eval_zero eval_one
+attribute [simp] eval_zero eval_one eval_omega
 
 /-- Construct a linear order from a principal segment into the ordinals. -/
 def linearOrderOfRepr (lt : α → α → Prop) [DecidableRel lt]
@@ -67,6 +74,9 @@ theorem range_eval : range (eval : α → _) = Set.Iio (top α) := eval.range_eq
   eval_zero (α := α) ▸ eval_inj (y := 0)
 @[simp] theorem eval_eq_one_iff : eval (x : α) = 1 ↔ x = 1 :=
   eval_one (α := α) ▸ eval_inj (y := 1)
+
+theorem eval_ne_zero_iff : eval (x : α) ≠ 0 ↔ x ≠ 0 := eval_eq_zero_iff.not
+theorem eval_ne_one_iff : eval (x : α) ≠ 1 ↔ x ≠ 1 := eval_eq_one_iff.not
 
 theorem mem_range_eval_iff_lt {o : Ordinal} : o ∈ range (eval : α → _) ↔ o < top α :=
   eval.mem_range_iff_rel' o
@@ -124,6 +134,13 @@ export LawfulDiv (eval_div)
 class LawfulPow (α : Type*) [LinearOrder α] [Notation α] [Pow α α] where
   eval_pow (x y : α) : eval (x ^ y) = eval x ^ eval y
 export LawfulPow (eval_pow)
+
+/-- A typeclass for the auxiliary operation on an ordinal notation which returns a term modulo `ω`,
+as a natural number. -/
+class ModOmega (α : Type*) [LinearOrder α] [Notation α] where
+  modOmega : α → ℕ
+  modOmega_eq (a : α) : modOmega a = eval a % ω
+export ModOmega (modOmega modOmega_eq)
 
 attribute [simp] eval_natCast eval_add eval_sub eval_mul eval_div eval_pow
 
@@ -240,28 +257,31 @@ theorem div_eq_zero_of_lt {a b : α} (h : a < b) : a / b = 0 := by
 
 end Div
 
-/-! ### Examples -/
+section Mod
+variable [Sub α] [Mul α] [Div α]
 
-/-! #### Extending a notation by one element -/
+instance [LinearOrder α] [Notation α] : Mod α where
+  mod a b := a - b * (a / b)
+
+theorem mod_def (a b : α) : a % b = a - b * (a / b) := rfl
+
+@[simp]
+theorem eval_mod [LawfulSub α] [LawfulMul α] [LawfulDiv α] (a b : α) :
+    eval (a % b) = eval a % eval b := by
+  simp [mod_def]
+
+theorem div_add_mod [Add α] [LawfulAdd α] [LawfulSub α] [LawfulMul α] [LawfulDiv α] (a b : α) :
+    b * (a / b) + a % b = a := by
+  rw [← eval_inj]; simpa using Ordinal.div_add_mod _ _
+
+end Mod
 
 /-- An ordinal notation on `α` may be extended to `WithTop α`. -/
 instance [LinearOrder α] [Notation α] : Notation (WithTop α) where
   eval := eval.withTop
+  omega := (Notation.omega : α)
   eval_zero := eval_zero
   eval_one := eval_one
-
-/-! #### The natural numbers-/
-
-/-- The naturals can be seen as an ordinal notation up to `ω`. -/
-instance : Notation ℕ where
-  eval := PrincipalSeg.natCast_ordinal
-
-instance : LawfulNatCast ℕ where eval_natCast _ := rfl
-instance : LawfulAdd ℕ where eval_add := Nat.cast_add
-instance : LawfulSub ℕ where eval_sub := Ordinal.natCast_sub
-instance : LawfulMul ℕ where eval_mul := Ordinal.natCast_mul
-instance : LawfulDiv ℕ where eval_div := Ordinal.natCast_div
-instance : LawfulPow ℕ where eval_pow := Ordinal.natCast_opow
 
 end Notation
 end Ordinal

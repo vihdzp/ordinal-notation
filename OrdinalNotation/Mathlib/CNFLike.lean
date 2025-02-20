@@ -71,11 +71,6 @@ theorem isCNFList (l : CNFList E) : IsCNFList l.1 := l.2
 @[simp] theorem val_zero : (0 : CNFList E).val = [] := rfl
 @[simp] theorem val_one [Zero E] : (1 : CNFList E).val = [toLex (0, 1)] := rfl
 
-/-- The first infinite ordinal `ω = ω ^ 1 * 1`. -/
-def omega [One E] : CNFList E := single 1 1
-@[simp] theorem omega_def [One E] : single (1 : E) 1 = omega := rfl
-@[simp] theorem val_omega [One E] : (omega : CNFList E).val = [toLex (1, 1)] := rfl
-
 /-- The cast from natural numbers is defined as `n = single 0 n`. -/
 instance [Zero E] : NatCast (CNFList E) where
   natCast n := n.recOn 0 (fun n _ ↦ single 0 n.succPNat)
@@ -305,7 +300,7 @@ private theorem mem_range_evalAux_of_lt {o} (h : o < ω ^ Notation.top E) :
     refine ⟨cons _ ⟨n, ?_⟩ _ h, ?_⟩
     · rw [← Nat.cast_lt (α := Ordinal), ← hn, Nat.cast_zero]
       exact div_opow_log_pos _ ho
-    · rw [evalAux_cons, he, PNat.mk_coe, ← hn, hl, div_add_mod]
+    · rw [evalAux_cons, he, PNat.mk_coe, ← hn, hl, Ordinal.div_add_mod]
 
 private theorem mem_range_evalAux_iff (o) :
     o ∈ Set.range (evalAux (E := E)) ↔ o < ω ^ Notation.top E := by
@@ -318,8 +313,13 @@ private theorem mem_range_evalAux_iff (o) :
 @[simps! eval_top]
 noncomputable instance [Notation E] : Notation (CNFList E) where
   eval := ⟨(OrderEmbedding.ofStrictMono _ strictMono_evalAux).ltEmbedding, _, mem_range_evalAux_iff⟩
+  omega := single 1 1
   eval_zero := List.sum_nil
   eval_one := by simp [evalAux]
+  eval_omega := by simp [evalAux]
+
+@[simp] theorem omega_def : single (1 : E) 1 = Notation.omega := rfl
+@[simp] theorem val_omega : (Notation.omega : CNFList E).val = [toLex (1, 1)] := rfl
 
 theorem eval_cons {e : E} {l : CNFList E} (h : expGT e l) (n : ℕ+) :
     eval (cons e n l h) = ω ^ eval e * n + eval l :=
@@ -354,6 +354,49 @@ instance : LawfulNatCast (CNFList E) where
     | n + 1 => by apply (eval_single _ _).trans; simp
 
 end Notation
+
+/-! ### Modulo omega -/
+
+section ModOmega
+variable [Notation E]
+
+private theorem omega0_opow_eval_of_ne_zero (h : e ≠ 0) : ω ^ eval e = ω * ω ^ (eval e - 1) := by
+  have : 1 ≤ eval e := by rwa [one_le_iff_ne_zero, eval_ne_zero_iff]
+  conv_lhs => rw [← Ordinal.add_sub_cancel_of_le this, opow_add, opow_one]
+
+theorem eval_cons_cons_mod_omega0 (hl hm) :
+    eval (cons f k (cons e n l hl) hm) % ω = eval (cons e n l hl) % ω := by
+  rw [expGT_cons_iff] at hm
+  rw [eval_cons, omega0_opow_eval_of_ne_zero hm.ne_bot, mul_assoc, mul_add_mod_self]
+
+private def modOmegaAux (l : CNFList E) : ℕ :=
+  match l.1.getLast? with
+    | none => 0
+    | some a => if (ofLex a).1 = 0 then (ofLex a).2 else 0
+
+private theorem modOmegaAux_single (e : E) (n : ℕ+) :
+    modOmegaAux (single e n) = eval (single e n) % ω := by
+  simp [single, modOmegaAux, eval_cons]
+  split
+  · have := mod_eq_of_lt (nat_lt_omega0.{0} n)
+    simp_all
+  · rwa [omega0_opow_eval_of_ne_zero, mul_assoc, mul_mod]
+
+private theorem modOmegaAux_cons_cons (hl hm) :
+    modOmegaAux (cons f k (cons e n l hl) hm) = modOmegaAux (cons e n l hl) := by
+  simp [modOmegaAux]
+
+instance : ModOmega (CNFList E) where
+  modOmega := modOmegaAux
+  modOmega_eq l := by
+    induction l using consRecOn with
+    | zero => simp [modOmegaAux]
+    | cons e n l hl IH =>
+      cases l using consRecOn with
+      | zero => exact modOmegaAux_single e n
+      | cons f k m hm => rw [eval_cons_cons_mod_omega0, modOmegaAux_cons_cons, IH]
+
+end ModOmega
 
 /-! ### Addition -/
 
@@ -835,14 +878,44 @@ instance [Add E] [LawfulAdd E] : LawfulDiv (CNFList E) where
 
 end Div
 
+#exit
+
 section Pow
-variable [Notation E] [Add E] [Mul E]
+variable [Notation E] [Add E] [LawfulAdd E] [Sub E] [Mul E] [Div E]
+
+/--/
+private def natPowAux (n : ℕ) (l : CNFList E) : CNFList E :=
+  l.consRecOn 1 fun e k _ _ IH ↦
+    if e = 0 then (n ^ k.val : ℕ) else single (e - 1) 1 * IH
+
+theorem natPowAux_cons (n : ℕ) (h : expGT e l) (he : e ≠ 0) (k : ℕ+) :
+    natPowAux n (cons _ k _ h) = single (e - 1) 1 * natPowAux n l := by
+  simp [natPowAux, he]
+-/
+        #exit
+
+private theorem eval_natPowAux [LawfulDiv E] {n : ℕ} (hn : 1 < n) (l : CNFList E) :
+    eval (natPowAux n l) = n ^ eval l := by
+  induction l using consRecOn with
+    | zero => simp [natPowAux]
+    | cons e n l hl =>
+      rw [natPowAux, consRecOn_cons]
+      split
+      · simp_all
+      · simp [eval_cons]
+
+
+
+#exit
 
 /-- We make this private as we don't yet prove this gives a valid `CNFList` for `CNFList` inputs. -/
-private def mulAux : List (E ×ₗ ℕ+) → List (E ×ₗ ℕ+) → List (E ×ₗ ℕ+)
-  | [], _ | _, [] => []
-  | a :: l, b :: m => if (ofLex b).1 = 0
-      then toLex ((ofLex a).1, (ofLex a).2 * (ofLex b).2) :: l
+private def powAux : List (E ×ₗ ℕ+) → List (E ×ₗ ℕ+) → List (E ×ₗ ℕ+)
+  | _, [] => [toLex (0, 1)]
+  | [], _ => []
+  | a :: l, b :: m => if (ofLex a).1 = 0 then
+      if (ofLex a).2 = 1 then [toLex (0, 1)] else
+        if (ofLex b).1 = 0 then [toLex (0, Nat.pow (ofLex a).2, (ofLex b).2)] else
+          toLex (divAux (b :: m))
       else toLex ((ofLex a).1 + (ofLex b).1, (ofLex b).2) :: mulAux (a :: l) m
 
 
