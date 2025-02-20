@@ -21,6 +21,13 @@ namespace Ordinal
 
 /-! ### Notation class -/
 
+/-- A typeclass for the first infinite ordinal `ω`.
+
+We don't give it notation as it would clash with `Ordinal.omega0`. -/
+class Omega (α : Type*) where
+  /-- The first infinite ordinal `ω`. -/
+  omega : α
+
 /-- An ordinal notation is a principal segment of the ordinals with decidable ordering.
 
 Usually, one first constructs a larger type of terms, of which a certain subtype of "normal forms"
@@ -28,11 +35,9 @@ satisfies the appropriate conditions.
 
 As a convenient nontriviality condition, we require that an ordinal notation is able to represent
 ordinals at least as big as `ω`. -/
-class Notation (α : Type*) [LinearOrder α] extends Zero α, One α where
-  /-- Represent a term as an ordinal. -/
+class Notation (α : Type*) [LinearOrder α] extends Zero α, One α, Omega α where
+  /-- Evalulate a term as an ordinal. This is noncomputable as ordinals have no VM representation. -/
   eval : α <i Ordinal.{0}
-  /-- The term corresponding to the first infinite ordinal `ω`. -/
-  protected omega : α
 
   eval_zero : eval 0 = 0 := by simp
   eval_one : eval 1 = 1 := by simp
@@ -40,6 +45,7 @@ class Notation (α : Type*) [LinearOrder α] extends Zero α, One α where
 
 namespace Notation
 
+export Omega (omega)
 attribute [simp] eval_zero eval_one eval_omega
 
 /-- Construct a linear order from a principal segment into the ordinals. -/
@@ -112,37 +118,53 @@ export LawfulNatCast (eval_natCast)
 
 /-- An ordinal notation with a correct addition operation. -/
 class LawfulAdd (α : Type*) [LinearOrder α] [Notation α] [Add α] where
-  eval_add (x y : α) : eval (x + y) = eval x + eval y
+  eval_add (a b : α) : eval (a + b) = eval a + eval b
 export LawfulAdd (eval_add)
 
 /-- An ordinal notation with a correct subtraction operation. -/
 class LawfulSub (α : Type*) [LinearOrder α] [Notation α] [Sub α] where
-  eval_sub (x y : α) : eval (x - y) = eval x - eval y
+  eval_sub (a b : α) : eval (a - b) = eval a - eval b
 export LawfulSub (eval_sub)
 
 /-- An ordinal notation with a correct multiplication operation. -/
 class LawfulMul (α : Type*) [LinearOrder α] [Notation α] [Mul α] where
-  eval_mul (x y : α) : eval (x * y) = eval x * eval y
+  eval_mul (a b : α) : eval (a * b) = eval a * eval b
 export LawfulMul (eval_mul)
 
 /-- An ordinal notation with a correct division operation. -/
 class LawfulDiv (α : Type*) [LinearOrder α] [Notation α] [Div α] where
-  eval_div (x y : α) : eval (x / y) = eval x / eval y
+  eval_div (a b : α) : eval (a / b) = eval a / eval b
 export LawfulDiv (eval_div)
 
 /-- An ordinal notation with a correct exponentiation operation. -/
-class LawfulPow (α : Type*) [LinearOrder α] [Notation α] [Pow α α] where
-  eval_pow (x y : α) : eval (x ^ y) = eval x ^ eval y
+class LawfulPow (α β : Type*) [LinearOrder α] [Notation α] [LinearOrder β] [Notation β] [Pow α β] where
+  eval_pow (a : α) (b : β) : eval (a ^ b) = eval a ^ eval b
 export LawfulPow (eval_pow)
 
-/-- A typeclass for the auxiliary operation on an ordinal notation which returns a term modulo `ω`,
-as a natural number. -/
-class ModOmega (α : Type*) [LinearOrder α] [Notation α] where
-  modOmega : α → ℕ
-  modOmega_eq (a : α) : modOmega a = eval a % ω
-export ModOmega (modOmega modOmega_eq)
+/-- A typeclass for the auxiliary operation on an ordinal notation which splits a term `x = y + n`
+for `y` a multiple of `ω` and natural `n`. -/
+class Split (α : Type*) [LinearOrder α] [Notation α] where
+  /-- Returns `y` where `x = y + n`, for `y` a multiple of `ω` and natural `n`.
 
-attribute [simp] eval_natCast eval_add eval_sub eval_mul eval_div eval_pow
+  This can be computed as `ω * (x / ω)`-/
+  splitFst : α → α
+  /-- Returns `n` where `x = y + n`, for `y` a multiple of `ω` and natural `n`. -/
+  splitSnd : α → ℕ
+
+  eval_splitFst (a : α) : eval (splitFst a) = ω * (eval a / ω)
+  splitSnd_eq (a : α) : splitSnd a = eval a % ω
+export Split (splitFst splitSnd eval_splitFst splitSnd_eq)
+
+attribute [simp] eval_natCast eval_add eval_sub eval_mul eval_div eval_pow eval_splitFst
+
+section NatCast
+variable [NatCast α] [LawfulNatCast α]
+
+@[simp]
+theorem natCast_inj {m n : ℕ} : (m : α) = n ↔ m = n := by
+  rw [← Nat.cast_inj (R := Ordinal), ← eval_natCast (α := α) m, ← eval_natCast (α := α) n, eval_inj]
+
+end NatCast
 
 section Add
 variable [Add α] [LawfulAdd α]
@@ -276,10 +298,32 @@ theorem div_add_mod [Add α] [LawfulAdd α] [LawfulSub α] [LawfulMul α] [Lawfu
 
 end Mod
 
+section Split
+variable [Split α]
+
+@[simp]
+theorem splitFst_natCast (n : ℕ) [NatCast α] [LawfulNatCast α] : splitFst (n : α) = 0 := by
+  rw [← eval_inj, eval_splitFst, eval_natCast, Ordinal.div_eq_zero_of_lt (nat_lt_omega0 n),
+    mul_zero, eval_zero]
+
+@[simp]
+theorem splitSnd_natCast (n : ℕ) [NatCast α] [LawfulNatCast α] : splitSnd (n : α) = n := by
+  rw [← Nat.cast_inj (R := Ordinal), splitSnd_eq, eval_natCast, nat_mod_omega0]
+
+theorem splitFst_eq [Mul α] [LawfulMul α] [Div α] [LawfulDiv α] (a : α) :
+    splitFst a = omega * (a / omega) := by
+  rw [← eval_inj, eval_splitFst]; simp
+
+theorem splitFst_add_splitSnd [Add α] [LawfulAdd α] [NatCast α] [LawfulNatCast α] (a : α) :
+    splitFst a + (splitSnd a : α) = a := by
+  rw [← eval_inj, eval_add, eval_splitFst, eval_natCast, splitSnd_eq, Ordinal.div_add_mod]
+
+end Split
+
 /-- An ordinal notation on `α` may be extended to `WithTop α`. -/
 instance [LinearOrder α] [Notation α] : Notation (WithTop α) where
   eval := eval.withTop
-  omega := (Notation.omega : α)
+  omega := (omega : α)
   eval_zero := eval_zero
   eval_one := eval_one
 

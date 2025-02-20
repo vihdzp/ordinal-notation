@@ -88,6 +88,10 @@ theorem mul_omega0_opow {a b} (ha : a ≠ 0) (hb : b ≠ 0) : a * ω ^ b = ω ^ 
 theorem div_eq_iff {a b c : Ordinal} (hb : b ≠ 0) : a / b = c ↔ b * c ≤ a ∧ a < b * (c + 1) := by
   rw [← Ordinal.le_div hb, ← Ordinal.div_lt hb, lt_add_one_iff, ← le_antisymm_iff, eq_comm]
 
+@[simp]
+theorem nat_mod_omega0 (n : ℕ) : n % ω = n :=
+  mod_eq_of_lt (nat_lt_omega0 n)
+
 end Ordinal
 
 theorem PNat.one_lt_of_ne {n : ℕ+} (hn : n ≠ 1) : 1 < n := by
