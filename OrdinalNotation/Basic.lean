@@ -45,7 +45,7 @@ arithmetic on `CNFLike` depend on this typeclass.
 We instead store a term `Nonempty (α <i Ordinal.{0})`, and extract it using the axiom of choice.
 Since `PrincipalSeg` is a subsingleton, this doesn't matter formally.
 -/
-class Notation (α : Type*) [LinearOrder α] extends Zero α, One α, Omega α where
+class Notation (α : Type*) extends LinearOrder α, Zero α, One α, Omega α where
   /-- Evalulate a term as an ordinal. This is noncomputable as ordinals have no VM representation. -/
   evalNonempty : Nonempty (α <i Ordinal.{0})
 
@@ -80,7 +80,7 @@ def ofEval [LinearOrder α] [Zero α] [One α] [Omega α] (eval : α <i Ordinal.
   eval_one' := (PrincipalSeg.eq _ _ _).trans h1
   eval_omega' := (PrincipalSeg.eq _ _ _).trans hω
 
-variable [LinearOrder α] [Notation α]
+variable [Notation α]
 
 /-- The ordinal corresponding to a term of an ordinal notation.
 
@@ -93,7 +93,7 @@ theorem eval_eq (f : α <i Ordinal.{0}) : eval = f := Subsingleton.allEq ..
 @[simp] theorem eval_omega : eval (omega : α) = ω := eval_omega'
 
 /-- The smallest ordinal not evalesented by an ordinal notation. -/
-noncomputable def top (α : Type*)  [LinearOrder α] [Notation α] : Ordinal.{0} := (eval (α := α)).top
+noncomputable def top (α : Type*) [Notation α] : Ordinal.{0} := (eval (α := α)).top
 
 theorem eval_strictMono : StrictMono (eval : α → _) := eval.strictMono
 theorem eval_monotone : Monotone (eval : α → _) := eval.monotone
@@ -134,8 +134,8 @@ instance : OrderBot α where
 
 @[simp] theorem bot_eq_zero : (⊥ : α) = 0 := rfl
 
--- We can use `WellFoundedLT.conditionallyCompleteLinearOrderBot` to (nonconstructibly) define
--- infima and suprema.
+-- You can use `WellFoundedLT.conditionallyCompleteLinearOrderBot` to get a (noncomputable)
+-- lattice instance.
 instance : WellFoundedLT α := eval.isWellFounded
 
 theorem isSuccLimit_top [NoMaxOrder α] : IsSuccLimit (top α) := by
@@ -247,7 +247,7 @@ instance : NoMaxOrder α where
     exact lt_add_one _
 
 /-- An ordinal notation is a `SuccOrder` setting `succ x = x + 1`. -/
-instance (α : Type*) [LinearOrder α] [Notation α] [Add α] [LawfulAdd α] : SuccAddOrder α :=
+instance (α : Type*) [Notation α] [Add α] [LawfulAdd α] : SuccAddOrder α :=
   let _ : SuccOrder α := by
     refine SuccOrder.ofCore (· + 1) ?_ fun a ha ↦ (not_isMax _ ha).elim
     intro a ha b
@@ -362,7 +362,7 @@ end Split
 instance [Omega α] : Omega (WithTop α) := ⟨(omega : α)⟩
 
 /-- An ordinal notation on `α` may be extended to `WithTop α`. -/
-instance [LinearOrder α] [Notation α] : Notation (WithTop α) := by
+instance [Notation α] : Notation (WithTop α) := by
   apply ofEval eval.withTop eval_zero eval_one eval_omega
 
 end Notation

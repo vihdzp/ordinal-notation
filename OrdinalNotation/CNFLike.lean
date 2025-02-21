@@ -18,15 +18,16 @@ open Order Set
 
 namespace Ordinal.Notation
 
-variable {E : Type u} {e f : E} [LinearOrder E]
+variable {E : Type u} {e f : E}
 
 /-! ### Basic definitions -/
 
 /-- The property determining whether a list is a `CNFList`. -/
-def IsCNFList (l : List (E ×ₗ ℕ+)) : Prop :=
+def IsCNFList [LinearOrder E] (l : List (E ×ₗ ℕ+)) : Prop :=
   (l.map fun x ↦ (ofLex x).1).Sorted (· > ·)
 
 namespace IsCNFList
+variable [LinearOrder E]
 
 @[simp] theorem nil : IsCNFList ([] : List (E ×ₗ ℕ+)) := List.sorted_nil
 @[simp] theorem singleton (x : E ×ₗ ℕ+) : IsCNFList [x] := List.sorted_singleton _
@@ -59,6 +60,8 @@ def CNFList (E : Type u) [LinearOrder E] : Type u :=
   Subtype (@IsCNFList E _)
 
 namespace CNFList
+section LinearOrder
+variable [LinearOrder E]
 
 @[ext] theorem ext {l m : CNFList E} : l.val = m.val → l = m := Subtype.ext
 
@@ -219,25 +222,31 @@ theorem consRecOn_cons {p : CNFList E → Sort*} (zero : p 0)
 theorem expGT_single_iff {e₁ e₂ : E} {n : ℕ+} : expGT e₁ (single e₂ n) ↔ e₂ < e₁ := by
   simp [expGT]
 
+end LinearOrder
+
+section Notation
+variable [Notation E]
+
 @[simp]
-theorem expGT_eq_zero_iff [Notation E] : expGT (0 : E) l ↔ l = 0 := by
+theorem expGT_eq_zero_iff : expGT (0 : E) l ↔ l = 0 := by
   induction l using consRecOn <;> simp [← bot_eq_zero]
 
 @[simp]
-theorem cons_zero [Notation E] (n : ℕ+) {l : CNFList E} (hl : expGT 0 l) : cons 0 n l hl = n := by
+theorem cons_zero (n : ℕ+) {l : CNFList E} (hl : expGT 0 l) : cons 0 n l hl = n := by
   obtain rfl := expGT_eq_zero_iff.1 hl
   rw [← single_zero, single_eq_cons]
 
 @[simp]
-theorem expGT_zero_left [Notation E] : expGT 0 l ↔ l = 0 := by
+theorem expGT_zero_left : expGT 0 l ↔ l = 0 := by
   induction l using consRecOn <;> simp
+
+end Notation
 
 -- toLex → single is monotonic
 
 /-! ### Notation instance -/
 
 section Notation
-
 variable [Notation E]
 
 /-- This is made private, as we'll instead use `Notation.eval` once we're able to build the
@@ -332,7 +341,7 @@ private noncomputable def eval' : CNFList E <i Ordinal.{0} :=
 
 /-- If `E` is an ordinal notation, then `CNFList E` is as well, by evaluating
 `ω ^ e₀ * n₀ + ω ^ e₁ * n₁ + ⋯` in the obvious manner. -/
-noncomputable instance [Notation E] : Notation (CNFList E) := by
+noncomputable instance : Notation (CNFList E) := by
   apply ofEval eval' <;> simp [eval', evalAux]
 
 private theorem eval_eq_evalAux (l : CNFList E) : eval l = evalAux l :=
@@ -490,6 +499,8 @@ end Split
 /-! ### Addition -/
 
 section Add
+section LinearOrder
+variable [LinearOrder E]
 
 /-- We make this private as we don't yet prove this gives a valid `CNFList` for `CNFList` inputs. -/
 private def addAux : List (E ×ₗ ℕ+) → List (E ×ₗ ℕ+) → List (E ×ₗ ℕ+)
@@ -571,7 +582,11 @@ theorem cons_add_cons_of_gt (he : f < e) (hl : expGT e l) (n : ℕ+) (hm : expGT
   rw [cons_add_cons]
   split <;> rename_i heq <;> rw [he.cmp_eq_gt] at heq <;> contradiction
 
-instance [Notation E] : LawfulAdd (CNFList E) where
+end LinearOrder
+
+variable [Notation E]
+
+instance : LawfulAdd (CNFList E) where
   eval_add l m := by
     induction l using consRecOn with
     | zero => simp
@@ -588,7 +603,7 @@ instance [Notation E] : LawfulAdd (CNFList E) where
         · rw [cons_add_cons_of_gt he, eval_cons]
           simp_rw [IH, eval_cons, add_assoc]
 
-theorem cons_eq_add [Notation E] (hl : expGT e l) (n : ℕ+) : cons e n l hl = single e n + l := by
+theorem cons_eq_add (hl : expGT e l) (n : ℕ+) : cons e n l hl = single e n + l := by
   rw [← eval_inj]; simp [eval_cons]
 
 end Add
@@ -596,6 +611,8 @@ end Add
 /-! ### Subtraction -/
 
 section Sub
+section LinearOrder
+variable [LinearOrder E]
 
 /-- We make this private as we don't yet prove this gives a valid `CNFList` for `CNFList` inputs. -/
 private def subAux : List (E ×ₗ ℕ+) → List (E ×ₗ ℕ+) → List (E ×ₗ ℕ+)
@@ -683,7 +700,11 @@ theorem cons_sub_cons_eq_of_gt {n k : ℕ+} (hn : k < n) (hl : expGT e l) (hm : 
     cons e n l hl - cons e k m hm = cons e (n - k) l hl := by
   rw [cons_sub_cons_of_eq, hn.cmp_eq_gt]
 
-instance [Notation E] : LawfulSub (CNFList E) where
+end LinearOrder
+
+variable [Notation E]
+
+instance : LawfulSub (CNFList E) where
   eval_sub l m := by
     induction l using consRecOn generalizing m with
     | zero => simp [zero_sub']
@@ -831,6 +852,7 @@ end Mul
 /-! ### Division -/
 
 section Div
+variable [Notation E]
 
 /-- The result of `(ω ^ e * n + l) / (ω ^ e * k + m)`, for any sufficiently large `e`. -/
 private def divNatAux (n k : ℕ+) (l m : List (E ×ₗ ℕ+)) : ℕ :=
@@ -838,7 +860,7 @@ private def divNatAux (n k : ℕ+) (l m : List (E ×ₗ ℕ+)) : ℕ :=
   if toLex (k.val * r, m) ≤ toLex (n.val, l) then r else r - 1
 
 private theorem divNatAux_eq {l m : CNFList E} (hl : expGT e l) (hm : expGT e m) (n k : ℕ+)
-    [Notation E] [Add E] [LawfulAdd E] :
+    [Add E] [LawfulAdd E] :
     eval (cons e n l hl) / eval (cons e k m hm) = divNatAux n k l.1 m.1 := by
   rw [divNatAux, Ordinal.div_eq_iff (eval_cons_ne_zero _ _)]
   obtain hn | hn := lt_or_le n k
@@ -863,7 +885,7 @@ private theorem divNatAux_eq {l m : CNFList E} (hl : expGT e l) (hm : expGT e m)
           simpa
         · simp_all [Prod.Lex.toLex_lt_toLex, cons_lt_cons_iff, ← PNat.coe_lt_coe, ← PNat.coe_inj]
 
-variable [Notation E] [Sub E]
+variable [Sub E]
 
 /-- We make this private as we don't yet prove this gives a valid `CNFList` for `CNFList` inputs. -/
 private def divAux : List (E ×ₗ ℕ+) → List (E ×ₗ ℕ+) → List (E ×ₗ ℕ+)
@@ -1057,8 +1079,6 @@ transferred through this isomorphism. -/
 class CNFLike (α : Type u) extends Zero α, One α, Omega α, LinearOrder α where
   /-- The type of exponents in the Cantor form. -/
   Exp : Type u
-  /-- Exponents are linearly ordered. -/
-  linearOrderExp : LinearOrder Exp := by infer_instance
   /-- The exponents form an ordinal notation. -/
   notationExp : Notation Exp := by infer_instance
 
@@ -1068,14 +1088,15 @@ class CNFLike (α : Type u) extends Zero α, One α, Omega α, LinearOrder α wh
   equivList_one : equivList 1 = 1
   equivList_omega : equivList omega = Notation.omega
 export CNFLike (Exp equivList equivList_zero equivList_one equivList_omega)
-attribute [instance] CNFLike.linearOrderExp CNFLike.notationExp
+attribute [instance] CNFLike.notationExp
 attribute [simp] equivList_zero equivList_one equivList_omega
 
 namespace CNFLike
 variable [CNFLike α]
 
+/-- The evaluation function used in `notationOfExp`. -/
 private noncomputable def eval' : α <i Ordinal.{0} :=
-  (equivList.toInitialSeg.transPrincipal eval)
+  equivList.toInitialSeg.transPrincipal eval
 
 instance notationOfExp [Notation (Exp α)] [CNFLike α] : Notation α := by
   apply ofEval eval' <;> simp [eval']
@@ -1084,14 +1105,19 @@ instance notationOfExp [Notation (Exp α)] [CNFLike α] : Notation α := by
 theorem eval_equivList (l : α) : eval (equivList l) = eval l := by
   simpa [eval'] using eval'.eq eval l
 
+instance : NatCast α where natCast n := equivList.symm n
+theorem natCast_def (n : ℕ) : (n : α) = equivList.symm n := rfl
+instance : LawfulNatCast α where
+  eval_natCast n := by simp [← eval_equivList, natCast_def]
+
 instance : Add α where add l m := equivList.symm (equivList l + equivList m)
 theorem add_def (l m : α) : l + m = equivList.symm (equivList l + equivList m) := rfl
-instance [Notation (Exp α)] : LawfulAdd α where
+instance : LawfulAdd α where
   eval_add l m := by simp [← eval_equivList, add_def]
 
 instance : Sub α where sub l m := equivList.symm (equivList l - equivList m)
 theorem sub_def (l m : α) : l - m = equivList.symm (equivList l - equivList m) := rfl
-instance [Notation (Exp α)] : LawfulSub α where
+instance : LawfulSub α where
   eval_sub l m := by simp [← eval_equivList, sub_def]
 
 section Mul

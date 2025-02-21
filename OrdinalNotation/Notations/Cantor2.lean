@@ -630,8 +630,10 @@ instance : CNFLike Cantor where
   equivList_one := sorry
   equivList_omega := sorry
 
-instance : Split Cantor := inferInstance
-instance : Split (Exp Cantor) := instSplit
+instance : NatCast Cantor := inferInstance
+instance : NatCast (Exp Cantor) := instNatCast
+instance : LawfulNatCast Cantor := inferInstance
+instance : LawfulNatCast (Exp Cantor) := instLawfulNatCast
 instance : Add Cantor := inferInstance
 instance : Add (Exp Cantor) := instAdd
 instance : LawfulAdd Cantor := inferInstance
@@ -648,8 +650,13 @@ instance : Div Cantor := inferInstance
 instance : Div (Exp Cantor) := instDiv
 instance : LawfulDiv Cantor := inferInstance
 instance : LawfulDiv (Exp Cantor) := instLawfulDiv
+instance : Split Cantor := inferInstance
+instance : Split (Exp Cantor) := instSplit
 instance : Pow Cantor Cantor := CNFLike.instPow
 instance : LawfulPow Cantor Cantor :=  CNFLike.instLawfulPow
+
+noncomputable instance : ConditionallyCompleteLinearOrderBot Cantor :=
+  WellFoundedLT.conditionallyCompleteLinearOrderBot _
 
 #eval! toString <| ((omega * 2 : Cantor) ^ (omega + 1 : Cantor))
 
