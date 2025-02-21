@@ -1054,9 +1054,9 @@ class CNFLike (α : Type u) extends Zero α, One α, LinearOrder α where
   /-- The type of exponents in the Cantor form. -/
   Exp : Type u
   /-- Exponents are linearly ordered. -/
-  linearOrderExp : LinearOrder Exp
+  linearOrderExp : LinearOrder Exp := by infer_instance
   /-- Exponents form an ordinal notation. -/
-  notationExp : Notation Exp
+  notationExp : Notation Exp := by infer_instance
 
   /-- The type is order-isomorphic to `CNFList Exp`. -/
   equivList : α ≃o CNFList Exp
