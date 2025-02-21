@@ -601,26 +601,45 @@ private noncomputable def eval : Cantor <i Ordinal.{0} where
       obtain ⟨x, hx, rfl⟩ := exists_NF_of_lt_epsilon0 ho
       exact ⟨⟨x, hx⟩, rfl⟩
 
-noncomputable instance : Notation Cantor where
+noncomputable instance instNotation : Notation Cantor where
   eval := eval
   eval_zero := by simp [eval]
   eval_one := by simp [eval]
   eval_omega := by simp [eval]
 
 private def equivListFun (x : Cantor) : CNFList Cantor :=
-  x.recOn [] fun e n _ _ _ IH ↦ toLex (e, n) :: IH
+  x.recOn 0 fun e n _ _ _ IH ↦ ⟨toLex (e, n) :: IH.1, sorry⟩
 
-/-private def equivListSymm (x : List (Cantor ×ₗ ℕ+)) : Cantor :=
-  match l with
-  | [] => 0
-  | a :: l => -/
+private def equivListSymm (x : CNFList Cantor) : Cantor :=
+  x.consRecOn 0 fun e n _ _ IH ↦ ⟨PreCantor.oadd e.1 n IH.1, sorry⟩
 
-#exit
+private def equivList : Cantor ≃o CNFList Cantor where
+  toFun := equivListFun
+  invFun := equivListSymm
+  left_inv := sorry
+  right_inv := sorry
+  map_rel_iff' := sorry
+
 instance : CNFLike Cantor where
   Exp := Cantor
-  linearOrderExp := inferInstance
+  equivList := equivList
 
-  equivList l := sorry
+noncomputable instance : Notation (Exp Cantor) := by
+  dsimp [Exp]
+  infer_instance
+
+noncomputable instance : LawfulCNFLike Cantor where
+  equivList_zero := sorry
+  equivList_one := sorry
+
+instance : Add Cantor := inferInstance
+instance : LawfulAdd Cantor := by
+  convert Ordinal.Notation.CNFLike.instLawfulAdd
+  · rfl
+instance : Sub Cantor := inferInstance
+
+instance : Mul Cantor :=
+  inferInstance
 
 end Cantor
 

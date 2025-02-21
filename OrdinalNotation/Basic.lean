@@ -34,19 +34,28 @@ Usually, one first constructs a larger type of terms, of which a certain subtype
 satisfies the appropriate conditions.
 
 As a convenient nontriviality condition, we require that an ordinal notation is able to represent
-ordinals at least as big as `ω`. -/
+ordinals at least as big as `ω`.
+
+## Computability
+
+Ordinal arithmetic is noncomputable, so if this stored the principal segment as data, it would
+necessarily be noncomputable. This causes issues later down the line, as the definitions of
+arithmetic on `CNFLike` depend on this typeclass.
+
+We instead store a term `Nonempty (α <i Ordinal.{0})`, and extract it using the axiom of choice.
+Since `PrincipalSeg` is a subsingleton, this doesn't matter formally.
+-/
 class Notation (α : Type*) [LinearOrder α] extends Zero α, One α, Omega α where
   /-- Evalulate a term as an ordinal. This is noncomputable as ordinals have no VM representation. -/
-  eval : α <i Ordinal.{0}
+  evalNonempty : Nonempty (α <i Ordinal.{0})
 
-  eval_zero : eval 0 = 0 := by simp
-  eval_one : eval 1 = 1 := by simp
-  eval_omega : eval omega = ω := by simp
+  eval_zero' : Classical.choice evalNonempty 0 = 0 := by simp
+  eval_one' : Classical.choice evalNonempty 1 = 1 := by simp
+  eval_omega' : Classical.choice evalNonempty omega = ω := by simp
 
 namespace Notation
 
 export Omega (omega)
-attribute [simp] eval_zero eval_one eval_omega
 
 /-- Construct a linear order from a principal segment into the ordinals. -/
 def linearOrderOfRepr (lt : α → α → Prop) [DecidableRel lt]
@@ -63,10 +72,28 @@ def linearOrderOfRepr (lt : α → α → Prop) [DecidableRel lt]
         exact lt_trans }
   linearOrderOfSTO lt
 
+/-- Builds a `Notation` instance from an explicit `eval` function. -/
+def ofEval [LinearOrder α] [Zero α] [One α] [Omega α] (eval : α <i Ordinal.{0})
+    (h0 : eval 0 = 0) (h1 : eval 1 = 1) (hω : eval omega = ω) : Notation α where
+  evalNonempty := ⟨eval⟩
+  eval_zero' := (PrincipalSeg.eq _ _ _).trans h0
+  eval_one' := (PrincipalSeg.eq _ _ _).trans h1
+  eval_omega' := (PrincipalSeg.eq _ _ _).trans hω
+
 variable [LinearOrder α] [Notation α]
 
+/-- The ordinal corresponding to a term of an ordinal notation.
+
+Since ordinal arithmetic is noncomputable, so is this function. -/
+noncomputable def eval [Notation α] : α <i Ordinal.{0} := Classical.choice evalNonempty
+theorem eval_eq (f : α <i Ordinal.{0}) : eval = f := Subsingleton.allEq ..
+
+@[simp] theorem eval_zero : eval (0 : α) = 0 := eval_zero'
+@[simp] theorem eval_one : eval (1 : α) = 1 := eval_one'
+@[simp] theorem eval_omega : eval (omega : α) = ω := eval_omega'
+
 /-- The smallest ordinal not evalesented by an ordinal notation. -/
-def top (α : Type*) [LinearOrder α] [h : Notation α] : Ordinal.{0} := h.eval.top
+noncomputable def top (α : Type*)  [LinearOrder α] [Notation α] : Ordinal.{0} := (eval (α := α)).top
 
 theorem eval_strictMono : StrictMono (eval : α → _) := eval.strictMono
 theorem eval_monotone : Monotone (eval : α → _) := eval.monotone
@@ -332,12 +359,11 @@ theorem splitFst_add_splitSnd [Add α] [LawfulAdd α] [NatCast α] [LawfulNatCas
 
 end Split
 
+instance [Omega α] : Omega (WithTop α) := ⟨(omega : α)⟩
+
 /-- An ordinal notation on `α` may be extended to `WithTop α`. -/
-instance [LinearOrder α] [Notation α] : Notation (WithTop α) where
-  eval := eval.withTop
-  omega := (omega : α)
-  eval_zero := eval_zero
-  eval_one := eval_one
+instance [LinearOrder α] [Notation α] : Notation (WithTop α) := by
+  apply ofEval eval.withTop eval_zero eval_one eval_omega
 
 end Notation
 end Ordinal

@@ -326,18 +326,21 @@ private theorem mem_range_evalAux_iff (o) :
   rintro ⟨l, rfl⟩
   exact evalAux_lt_opow_top l
 
+/-- `evalAux` as a `PrincipalSeg`. -/
+private noncomputable def eval' : CNFList E <i Ordinal.{0} :=
+  ⟨(OrderEmbedding.ofStrictMono _ strictMono_evalAux).ltEmbedding, _, mem_range_evalAux_iff⟩
+
 /-- If `E` is an ordinal notation, then `CNFList E` is as well, by evaluating
 `ω ^ e₀ * n₀ + ω ^ e₁ * n₁ + ⋯` in the obvious manner. -/
-@[simps! eval_top]
-noncomputable instance [Notation E] : Notation (CNFList E) where
-  eval := ⟨(OrderEmbedding.ofStrictMono _ strictMono_evalAux).ltEmbedding, _, mem_range_evalAux_iff⟩
-  eval_zero := List.sum_nil
-  eval_one := by simp [evalAux]
-  eval_omega := by simp [evalAux]
+noncomputable instance [Notation E] : Notation (CNFList E) := by
+  apply ofEval eval' <;> simp [eval', evalAux]
+
+private theorem eval_eq_evalAux (l : CNFList E) : eval l = evalAux l :=
+  eval.eq eval' l
 
 theorem eval_cons {e : E} {l : CNFList E} (h : expGT e l) (n : ℕ+) :
-    eval (cons e n l h) = ω ^ eval e * n + eval l :=
-  rfl
+    eval (cons e n l h) = ω ^ eval e * n + eval l := by
+  simp_rw [eval_eq_evalAux]; rfl
 
 theorem eval_cons_ne_zero {e : E} {l : CNFList E} (h : expGT e l) (n : ℕ+) :
     eval (cons e n l h) ≠ 0 := by
@@ -347,11 +350,12 @@ theorem eval_cons_ne_zero {e : E} {l : CNFList E} (h : expGT e l) (n : ℕ+) :
 theorem eval_single (e : E) (n : ℕ+) : eval (single e n) = ω ^ eval e * n := by
   simp [single_eq_cons, eval_cons]
 
-theorem le_eval_cons {l : CNFList E} (h : expGT e l) (n : ℕ+) : ω ^ eval e ≤ eval (cons e n l h) :=
-  le_evalAux_cons h n
+theorem le_eval_cons {l : CNFList E} (h : expGT e l) (n : ℕ+) :
+    ω ^ eval e ≤ eval (cons e n l h) := by
+  simp_rw [eval_eq_evalAux]; exact le_evalAux_cons h n
 
-theorem expGT_iff_eval_lt {l : CNFList E} : expGT e l ↔ eval l < ω ^ eval e :=
-  expGT_iff_evalAux_lt
+theorem expGT_iff_eval_lt {l : CNFList E} : expGT e l ↔ eval l < ω ^ eval e := by
+  simp_rw [eval_eq_evalAux]; exact expGT_iff_evalAux_lt
 
 alias ⟨expGT.eval_lt, _⟩ := expGT_iff_eval_lt
 
@@ -370,7 +374,7 @@ theorem log_omega0_eval_cons {e : E} {l : CNFList E} (h : expGT e l) (n : ℕ+) 
 
 instance : LawfulNatCast (CNFList E) where
   eval_natCast n := match n with
-    | 0 => rfl
+    | 0 => by simp
     | n + 1 => by apply (eval_single _ _).trans; simp
 
 end Notation
@@ -580,7 +584,7 @@ instance [Notation E] : LawfulAdd (CNFList E) where
           exact (add_absorp (eval_cons_lt he _) (le_eval_cons _ _)).symm
         · rw [cons_add_cons_eq, eval_cons, eval_cons, eval_cons, add_assoc, add_absorp hl.eval_lt,
             ← add_assoc, PNat.add_coe, Nat.cast_add, mul_add]
-          exact le_eval_cons hm _
+          simpa [eval_cons] using le_eval_cons hm _
         · rw [cons_add_cons_of_gt he, eval_cons]
           simp_rw [IH, eval_cons, add_assoc]
 
@@ -1050,46 +1054,53 @@ end CNFList
 
 /-- A type which is order-isomorphic to `CNFList Exp` for some type of exponents. Arithmetic can be
 transferred through this isomorphism. -/
-class CNFLike (α : Type u) extends Zero α, One α, LinearOrder α where
+class CNFLike (α : Type u) extends Zero α, One α, Omega α, LinearOrder α where
   /-- The type of exponents in the Cantor form. -/
   Exp : Type u
   /-- Exponents are linearly ordered. -/
   linearOrderExp : LinearOrder Exp := by infer_instance
-  /-- Exponents form an ordinal notation. -/
+  /-- The exponents form an ordinal notation. -/
   notationExp : Notation Exp := by infer_instance
 
   /-- The type is order-isomorphic to `CNFList Exp`. -/
   equivList : α ≃o CNFList Exp
   equivList_zero : equivList 0 = 0
   equivList_one : equivList 1 = 1
+  equivList_omega : equivList omega = Notation.omega
+export CNFLike (Exp equivList equivList_zero equivList_one equivList_omega)
+attribute [instance] CNFLike.linearOrderExp CNFLike.notationExp
+attribute [simp] equivList_zero equivList_one equivList_omega
 
 namespace CNFLike
 variable [CNFLike α]
 
-attribute [instance] linearOrderExp notationExp
-attribute [simp] equivList_zero equivList_one
+private noncomputable def eval' : α <i Ordinal.{0} :=
+  (equivList.toInitialSeg.transPrincipal eval)
 
-noncomputable instance : Notation α where
-  eval := equivList.toInitialSeg.transPrincipal eval
-  omega := equivList.symm omega
+instance notationOfExp [Notation (Exp α)] [CNFLike α] : Notation α := by
+  apply ofEval eval' <;> simp [eval']
 
-theorem eval_def (l : α) : eval l = eval (equivList l) :=
-  InitialSeg.transPrincipal_apply ..
+@[simp]
+theorem eval_equivList (l : α) : eval (equivList l) = eval l := by
+  simpa [eval'] using eval'.eq eval l
 
 instance : Add α where add l m := equivList.symm (equivList l + equivList m)
 theorem add_def (l m : α) : l + m = equivList.symm (equivList l + equivList m) := rfl
-instance : LawfulAdd α where eval_add l m := by simp [eval_def, add_def]
+instance [Notation (Exp α)] : LawfulAdd α where
+  eval_add l m := by simp [← eval_equivList, add_def]
 
 instance : Sub α where sub l m := equivList.symm (equivList l - equivList m)
 theorem sub_def (l m : α) : l - m = equivList.symm (equivList l - equivList m) := rfl
-instance : LawfulSub α where eval_sub l m := by simp [eval_def, sub_def]
+instance [Notation (Exp α)] : LawfulSub α where
+  eval_sub l m := by simp [← eval_equivList, sub_def]
 
 section Mul
 variable [Add (Exp α)] [LawfulAdd (Exp α)]
 
 instance : Mul α where mul l m := equivList.symm (equivList l * equivList m)
 theorem mul_def (l m : α) : l * m = equivList.symm (equivList l * equivList m) := rfl
-instance : LawfulMul α where eval_mul l m := by simp [eval_def, mul_def]
+instance : LawfulMul α where
+  eval_mul l m := by simp [← eval_equivList, mul_def]
 
 end Mul
 
@@ -1099,7 +1110,7 @@ variable [Sub (Exp α)] [LawfulSub (Exp α)]
 instance : Div α where div l m := equivList.symm (equivList l / equivList m)
 theorem div_def (l m : α) : l / m = equivList.symm (equivList l / equivList m) := rfl
 instance [Add (Exp α)] [LawfulAdd (Exp α)] : LawfulDiv α where
-  eval_div l m := by simp [eval_def, div_def]
+  eval_div l m := by simp [← eval_equivList, div_def]
 
 end Div
 
@@ -1108,8 +1119,8 @@ section Split
 instance : Split α where
   splitFst l := equivList.symm (splitFst (equivList l))
   splitSnd l := splitSnd (equivList l)
-  eval_splitFst l := by simp [eval_def]
-  splitSnd_eq l := by simp [eval_def, splitSnd_eq]
+  eval_splitFst l := by simp [← eval_equivList]
+  splitSnd_eq l := by simp [← eval_equivList, splitSnd_eq]
 
 theorem splitFst_def (l : α) : splitFst l = equivList.symm (splitFst (equivList l)) := rfl
 theorem splitSnd_def (l : α) : splitSnd l = splitSnd (equivList l) := rfl
@@ -1121,8 +1132,8 @@ variable [Add (Exp α)] [LawfulAdd (Exp α)] [Mul (Exp α)] [Div (Exp α)] [Spli
 
 instance : Pow α (Exp α) where pow l e := equivList.symm (equivList l ^ e)
 theorem pow_def (l : α) (e : Exp α) : l ^ e = equivList.symm (equivList l ^ e) := rfl
-instance [LawfulMul (Exp α)] [LawfulDiv (Exp α)] : LawfulPow α (Exp α) where
-  eval_pow := by simp [eval_def, pow_def]
+instance [LawfulMul (Exp α)] [LawfulDiv (Exp α)]  : LawfulPow α (Exp α) where
+  eval_pow := by simp [← eval_equivList, pow_def]
 
 end Pow
 
