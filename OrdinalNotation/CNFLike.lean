@@ -132,6 +132,10 @@ theorem expGT.isCNFList {l : CNFList E} (h : expGT e l) (n : ℕ+) :
   · rw [IsCNFList.cons_cons]
     exact ⟨h _ rfl, hl⟩
 
+@[simp]
+theorem expGT_single_iff {e₁ e₂ : E} {n : ℕ+} : expGT e₁ (single e₂ n) ↔ e₂ < e₁ := by
+  simp [expGT]
+
 /-- Appends an item `(e, n)` to a `CNFList`, given that the exponent is larger than the largest
 exponent of the original list.
 
@@ -149,16 +153,10 @@ theorem mk_cons_eq_cons {x : E ×ₗ ℕ+} {l : List (E ×ₗ ℕ+)} {h : IsCNFL
     ⟨x :: l, h⟩ = cons _ (ofLex x).2 _ h.expGT :=
   rfl
 
-@[simp]
-theorem cons_ne_zero (hl : expGT e l) (n : ℕ+) : cons e n l hl ≠ 0 := by
-  rw [ne_eq, CNFList.ext_iff]; simp
-
-@[simp]
-theorem zero_ne_cons (hl : expGT e l) (n : ℕ+) : 0 ≠ cons e n l hl := by
-  rw [ne_eq, CNFList.ext_iff]; simp
-
-theorem single_eq_cons (e : E) (n : ℕ+) : single e n = cons e n 0 (expGT_zero_right e) :=
-  rfl
+@[simp] theorem cons_pos (hl : expGT e l) (n : ℕ+) : 0 < cons e n l hl := List.nil_lt_cons ..
+@[simp] theorem cons_ne_zero (hl : expGT e l) (n : ℕ+) : cons e n l hl ≠ 0 := (cons_pos hl n).ne'
+@[simp] theorem zero_ne_cons (hl : expGT e l) (n : ℕ+) : 0 ≠ cons e n l hl := (cons_pos hl n).ne
+theorem single_eq_cons (e : E) (n : ℕ+) : single e n = cons e n 0 (expGT_zero_right e) := rfl
 
 @[simp]
 theorem expGT_cons_iff {e₁ e₂ : E} {l : CNFList E} (h : expGT e₂ l) {n : ℕ+} :
@@ -218,9 +216,10 @@ theorem consRecOn_cons {p : CNFList E → Sort*} (zero : p 0)
     consRecOn (.cons e n l h) zero cons = cons _ n _ h (consRecOn l zero cons) :=
   by rw [consRecOn.eq_def]; rfl
 
-@[simp]
-theorem expGT_single_iff {e₁ e₂ : E} {n : ℕ+} : expGT e₁ (single e₂ n) ↔ e₂ < e₁ := by
-  simp [expGT]
+theorem expGT_iff_lt_single : expGT e l ↔ l < single e 1 := by
+  induction l using consRecOn with
+  | zero => simp [single]
+  | cons f n l hl => simp [single_eq_cons, cons_lt_cons_iff, Prod.Lex.toLex_lt_toLex]
 
 end LinearOrder
 
@@ -382,7 +381,7 @@ theorem log_omega0_eval_cons {e : E} {l : CNFList E} (h : expGT e l) (n : ℕ+) 
     log_eq_zero (nat_lt_omega0 n), add_zero]
 
 instance : LawfulNatCast (CNFList E) where
-  eval_natCast n := match n with
+  eval_natCast
     | 0 => by simp
     | n + 1 => by apply (eval_single _ _).trans; simp
 

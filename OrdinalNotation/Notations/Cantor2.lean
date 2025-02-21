@@ -1,5 +1,6 @@
 import OrdinalNotation.CNFLike
 import OrdinalNotation.Mathlib.Veblen
+import Mathlib.Tactic.DeriveCountable
 
 /-!
 # Cantor normal form
@@ -22,51 +23,35 @@ inductive PreCantor : Type
   | zero : PreCantor
   /-- The ordinal `oadd e n a = ω ^ e * n + a` -/
   | oadd : PreCantor → ℕ+ → PreCantor → PreCantor
-  deriving DecidableEq
+  deriving Countable, DecidableEq
 
 attribute [pp_nodot] PreCantor.oadd
-
 compile_inductive% PreCantor
 
 namespace PreCantor
-
 variable {e a e₁ a₁ e₂ a₂ e₃ a₃ e₄ a₄ : PreCantor} {n₁ n₂ n₃ n₄ : ℕ+}
 
 /-! ### Basic instances -/
 
 theorem oadd_inj : oadd e₁ n₁ a₁ = oadd e₂ n₂ a₂ ↔ e₁ = e₂ ∧ n₁ = n₂ ∧ a₁ = a₂ :=
-  oadd.injEq .. ▸ Iff.rfl
+  propext_iff.1 <| oadd.injEq ..
 
 /-- The ordinal `0` is represented as `zero`. -/
-instance : Zero PreCantor :=
-  ⟨zero⟩
-
+instance : Zero PreCantor := ⟨zero⟩
+instance : Inhabited PreCantor := ⟨0⟩
+@[simp] theorem zero_def : zero = 0 := rfl
 attribute [nolint simpNF] zero.sizeOf_spec
-
-@[simp]
-theorem zero_def : zero = 0 :=
-  rfl
-
-instance : Inhabited PreCantor :=
-  ⟨0⟩
 
 theorem oadd_ne_zero : oadd e n a ≠ 0 := fun h ↦ by
   contradiction
 
 /-- The ordinal `1` is represented as `oadd 0 1 0 = ω ^ 0 * 1 + 0`. -/
-instance : One PreCantor :=
-  ⟨oadd 0 1 0⟩
-
-@[simp]
-theorem one_def : oadd 0 1 0 = 1 :=
-  rfl
-
-instance : NeZero (1 : PreCantor) :=
-  ⟨oadd_ne_zero⟩
+instance : One PreCantor := ⟨oadd 0 1 0⟩
+@[simp] theorem one_def : oadd 0 1 0 = 1 := rfl
+instance : NeZero (1 : PreCantor) := ⟨oadd_ne_zero⟩
 
 /-- The ordinal `ω` is represented as `oadd 1 1 0 = ω ^ 1 * 1 + 0`. -/
-instance : Omega PreCantor :=
-  ⟨oadd 1 1 0⟩
+instance : Omega PreCantor := ⟨oadd 1 1 0⟩
 
 /-- The ordinal denoted by a notation.
 
@@ -171,56 +156,6 @@ private def repr' (prec : ℕ) : PreCantor → Format
 instance : Repr PreCantor where
   reprPrec o prec := repr' prec o
 
-/-! ### Cardinality -/
-
-inductive S : Type where
-  | nat (n : ℕ)
-  | cons (a b : S)
-
-instance : Coe ℕ S := ⟨S.nat⟩
-instance (n : Nat) : OfNat S n := ⟨n⟩
-
-def S.toNat : S → ℕ
-  | nat n => Nat.pair 0 n
-  | cons a b => Nat.pair (a.toNat + 1) b.toNat
-
-theorem S.toNat_injective : Function.Injective S.toNat
-  | nat m, nat n
-  | cons a b, nat n
-  | nat m, cons a b => by simp [S.toNat]
-  | cons a b, cons c d => by
-    simp_rw [toNat, Nat.pair_eq_pair, add_left_inj, cons.injEq]
-    exact fun ⟨h₁, h₂⟩ ↦ ⟨S.toNat_injective h₁, S.toNat_injective h₂⟩
-
-instance : Countable S :=
-  S.toNat_injective.countable
-
-def _root_.PNat.toS (n : ℕ+) : S := (n : ℕ)
-theorem _root_.PNat.toS_injective : Function.Injective PNat.toS := by
-  simp [Function.Injective, PNat.toS]
-
-def toS : PreCantor → S
-  | .zero => .cons 0 0
-  | .oadd x n y => .cons 1 (.cons x.toS (.cons n.toS y.toS))
-
--- Written by Kyle Miller: https://leanprover.zulipchat.com/#narrow/channel/116395-maths/topic/Countability.20of.20inductive.20type/near/479790761
-theorem toS_injective : Function.Injective PreCantor.toS := by
-  intro x
-  induction x with
-  | zero => rintro (_ | _) <;> simp [toS]
-  | oadd x n y ihx ihy =>
-    rintro (_|_)
-    · simp [toS]
-    simp [toS]
-    intro h1 h2 h3
-    cases ihx h1
-    cases ihy h3
-    cases PNat.toS_injective h2
-    simp
-
-instance : Countable PreCantor :=
-  toS_injective.countable
-
 /-! ### Ordering -/
 
 -- Most of this section is privated as the resulting linear order instance subsumes
@@ -241,14 +176,10 @@ protected def cmp : PreCantor → PreCantor → Ordering
   | _, 0 => gt
   | (oadd e₁ n₁ a₁), (oadd e₂ n₂ a₂) => (e₁.cmp e₂).then ((_root_.cmp n₁ n₂).then (a₁.cmp a₂))
 
-instance : LT PreCantor where
-  lt x y := x.cmp y = lt
-
+instance : LT PreCantor where lt x y := x.cmp y = lt
 theorem lt_def (x y : PreCantor) : x < y ↔ x.cmp y = lt := Iff.rfl
 
-instance : LE PreCantor where
-  le x y := x.cmp y ≠ gt
-
+instance : LE PreCantor where le x y := x.cmp y ≠ gt
 theorem le_def (x y : PreCantor) : x ≤ y ↔ x.cmp y ≠ gt := Iff.rfl
 
 @[simp]
