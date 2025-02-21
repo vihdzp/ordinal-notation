@@ -161,15 +161,15 @@ instance : ToString PreCantor :=
 
 open Lean in
 /-- Print a term in `PreCantor` -/
-private def eval' (prec : ℕ) : PreCantor → Format
+private def repr' (prec : ℕ) : PreCantor → Format
   | zero => "0"
   | oadd e n a =>
     Repr.addAppParen
-      ("oadd " ++ (eval' max_prec e) ++ " " ++ repr n ++ " " ++ (eval' max_prec a))
+      ("oadd " ++ (repr' max_prec e) ++ " " ++ repr n ++ " " ++ (repr' max_prec a))
       prec
 
 instance : Repr PreCantor where
-  reprPrec o prec := eval' prec o
+  reprPrec o prec := repr' prec o
 
 /-! ### Cardinality -/
 
@@ -567,6 +567,12 @@ instance : Inhabited Cantor := ⟨0⟩
 @[simp] theorem val_one : (1 : Cantor).val = 1 := rfl
 @[simp] theorem val_omega : (omega : Cantor).val = omega := rfl
 
+instance : ToString Cantor :=
+  ⟨fun x => x.1.toString⟩
+
+instance : Repr Cantor :=
+  ⟨fun x prec => x.1.repr' prec⟩
+
 /-- This is a recursor-like theorem for `Cantor` suggesting an inductive definition, which can't
 actually be defined this way due to conflicting dependencies. -/
 @[elab_as_elim]
@@ -601,11 +607,8 @@ private noncomputable def eval : Cantor <i Ordinal.{0} where
       obtain ⟨x, hx, rfl⟩ := exists_NF_of_lt_epsilon0 ho
       exact ⟨⟨x, hx⟩, rfl⟩
 
-noncomputable instance instNotation : Notation Cantor where
-  eval := eval
-  eval_zero := by simp [eval]
-  eval_one := by simp [eval]
-  eval_omega := by simp [eval]
+instance instNotation : Notation Cantor := by
+  apply ofEval eval <;> simp [eval]
 
 private def equivListFun (x : Cantor) : CNFList Cantor :=
   x.recOn 0 fun e n _ _ _ IH ↦ ⟨toLex (e, n) :: IH.1, sorry⟩
@@ -623,23 +626,32 @@ private def equivList : Cantor ≃o CNFList Cantor where
 instance : CNFLike Cantor where
   Exp := Cantor
   equivList := equivList
-
-noncomputable instance : Notation (Exp Cantor) := by
-  dsimp [Exp]
-  infer_instance
-
-noncomputable instance : LawfulCNFLike Cantor where
   equivList_zero := sorry
   equivList_one := sorry
+  equivList_omega := sorry
 
+instance : Split Cantor := inferInstance
+instance : Split (Exp Cantor) := instSplit
 instance : Add Cantor := inferInstance
-instance : LawfulAdd Cantor := by
-  convert Ordinal.Notation.CNFLike.instLawfulAdd
-  · rfl
+instance : Add (Exp Cantor) := instAdd
+instance : LawfulAdd Cantor := inferInstance
+instance : LawfulAdd (Exp Cantor) := instLawfulAdd
 instance : Sub Cantor := inferInstance
+instance : Sub (Exp Cantor) := instSub
+instance : LawfulSub Cantor := inferInstance
+instance : LawfulSub (Exp Cantor) := instLawfulSub
+instance : Mul Cantor := inferInstance
+instance : Mul (Exp Cantor) := instMul
+instance : LawfulMul Cantor := inferInstance
+instance : LawfulMul (Exp Cantor) := instLawfulMul
+instance : Div Cantor := inferInstance
+instance : Div (Exp Cantor) := instDiv
+instance : LawfulDiv Cantor := inferInstance
+instance : LawfulDiv (Exp Cantor) := instLawfulDiv
+instance : Pow Cantor Cantor := CNFLike.instPow
+instance : LawfulPow Cantor Cantor :=  CNFLike.instLawfulPow
 
-instance : Mul Cantor :=
-  inferInstance
+#eval! toString <| ((omega * 2 : Cantor) ^ (omega + 1 : Cantor))
 
 end Cantor
 

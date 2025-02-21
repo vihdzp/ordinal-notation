@@ -1130,9 +1130,9 @@ end Split
 section Pow
 variable [Add (Exp α)] [LawfulAdd (Exp α)] [Mul (Exp α)] [Div (Exp α)] [Split (Exp α)]
 
-instance : Pow α (Exp α) where pow l e := equivList.symm (equivList l ^ e)
+instance instPow : Pow α (Exp α) where pow l e := equivList.symm (equivList l ^ e)
 theorem pow_def (l : α) (e : Exp α) : l ^ e = equivList.symm (equivList l ^ e) := rfl
-instance [LawfulMul (Exp α)] [LawfulDiv (Exp α)]  : LawfulPow α (Exp α) where
+instance instLawfulPow [LawfulMul (Exp α)] [LawfulDiv (Exp α)] : LawfulPow α (Exp α) where
   eval_pow := by simp [← eval_equivList, pow_def]
 
 end Pow
