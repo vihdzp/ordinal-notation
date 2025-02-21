@@ -370,9 +370,11 @@ end Notation
 section Split
 variable [Notation E]
 
+private theorem one_le_eval (h : e ≠ 0) : 1 ≤ eval e := by
+  rwa [one_le_iff_ne_zero, eval_ne_zero_iff]
+
 private theorem omega0_opow_eval_of_ne_zero (h : e ≠ 0) : ω ^ eval e = ω * ω ^ (eval e - 1) := by
-  have : 1 ≤ eval e := by rwa [one_le_iff_ne_zero, eval_ne_zero_iff]
-  conv_lhs => rw [← Ordinal.add_sub_cancel_of_le this, opow_add, opow_one]
+  conv_lhs => rw [← Ordinal.add_sub_cancel_of_le (one_le_eval h), opow_add, opow_one]
 
 theorem eval_cons_cons_mod_omega0 (hl hm) :
     eval (cons f k (cons e n l hl) hm) % ω = eval (cons e n l hl) % ω := by
@@ -404,6 +406,70 @@ private theorem splitSndAux_eq (l : CNFList E) : splitSndAux l.1 = eval l % ω :
       cases l using consRecOn with
       | zero => exact splitSndAux_single e n
       | cons f k m hm => rw [eval_cons_cons_mod_omega0, splitSndAux_cons_cons, IH]
+
+/-- An auxiliary function for `splitFst`. -/
+private def splitFstAux (l : CNFList E) : CNFList E :=
+  if splitSndAux l.1 = 0 then l else ⟨_, l.2.dropLast⟩
+
+private def expGT.dropLast {l : CNFList E} (h : expGT e l) : expGT e ⟨_, l.2.dropLast⟩ := by
+  cases l using consRecOn with
+  | zero => exact expGT_zero _
+  | cons f n l hl =>
+    cases l using consRecOn with
+    | zero => exact expGT_zero _
+    | cons => simp_all [expGT]
+
+private theorem expGT.splitFstAux {l : CNFList E} (h : expGT e l) : expGT e (splitFstAux l) := by
+  rw [CNFList.splitFstAux]
+  split
+  · exact h
+  · exact h.dropLast
+
+private theorem eval_splitFstAux_single (e : E) (n : ℕ+) :
+    eval (splitFstAux (single e n)) = ω * (eval (single e n) / ω) := by
+  dsimp [single, splitFstAux, splitSndAux]
+  split
+  · simp_all [Ordinal.div_eq_zero_of_lt (nat_lt_omega0 n)]
+  · rw [if_pos rfl, eval_cons, omega0_opow_eval_of_ne_zero, mul_assoc, mul_add_div _ omega0_ne_zero]
+    · simp
+    · assumption
+
+private theorem splitFstAux_cons_cons (hl hm) :
+    splitFstAux (cons f k (cons e n l hl) hm) = cons f k _ hm.splitFstAux := by
+  rw [splitFstAux, splitSndAux_cons_cons]
+  aesop (add simp [splitFstAux])
+
+private theorem eval_splitFstAux (l : CNFList E) : eval (splitFstAux l) = ω * (eval l / ω) := by
+  induction l using consRecOn with
+  | zero => simp [splitFstAux]
+  | cons e n l hl IH =>
+    cases l using consRecOn with
+    | zero => exact eval_splitFstAux_single e _
+    | cons f k m hm =>
+      rw [expGT_cons_iff] at hl
+      rw [splitFstAux_cons_cons, eval_cons, IH]
+      conv_rhs => rw [eval_cons, omega0_opow_eval_of_ne_zero hl.ne_bot, mul_assoc,
+        Ordinal.mul_add_div _ omega0_ne_zero, mul_add, ← mul_assoc, ← opow_one_add,
+        Ordinal.add_sub_cancel_of_le (one_le_eval hl.ne_bot)]
+
+instance : Split (CNFList E) where
+  splitFst := splitFstAux
+  splitSnd l := splitSndAux l.1
+  eval_splitFst := eval_splitFstAux
+  splitSnd_eq := splitSndAux_eq
+
+theorem expGT.splitFst {l : CNFList E} (h : expGT e l) : expGT e (splitFst l) :=
+  h.splitFstAux
+
+@[simp]
+theorem splitFst_cons_cons (hl hm) :
+    splitFst (cons f k (cons e n l hl) hm) = cons f k _ hm.splitFst :=
+  splitFstAux_cons_cons ..
+
+@[simp]
+theorem splitSnd_cons_cons (hl hm) :
+    splitSnd (cons f k (cons e n l hl) hm) = splitSnd (cons e n l hl) :=
+  splitSndAux_cons_cons _ _
 
 end Split
 
