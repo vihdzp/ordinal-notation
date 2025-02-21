@@ -14,7 +14,7 @@ objective is to implement all (most?) other ordinal notations in this repository
 
 universe u
 
-open Set
+open Order Set
 
 namespace Ordinal.Notation
 
@@ -108,7 +108,7 @@ condition on which `⟨e, n⟩ :: l` can be a `CNFList`. -/
 def expGT (e : E) (l : CNFList E) : Prop :=
   ∀ f ∈ l.1.head?, (ofLex f).1 < e
 
-@[simp] theorem expGT_zero (e : E) : expGT e 0 := by simp [expGT]
+@[simp] theorem expGT_zero_right (e : E) : expGT e 0 := by simp [expGT]
 instance (e : E) (l) : Decidable (expGT e l) := inferInstanceAs (Decidable (∀ _, _))
 
 theorem expGT.trans_le (h : expGT e l) (he : e ≤ f) : expGT f l :=
@@ -154,7 +154,7 @@ theorem cons_ne_zero (hl : expGT e l) (n : ℕ+) : cons e n l hl ≠ 0 := by
 theorem zero_ne_cons (hl : expGT e l) (n : ℕ+) : 0 ≠ cons e n l hl := by
   rw [ne_eq, CNFList.ext_iff]; simp
 
-theorem single_eq_cons (e : E) (n : ℕ+) : single e n = cons e n 0 (expGT_zero e) :=
+theorem single_eq_cons (e : E) (n : ℕ+) : single e n = cons e n 0 (expGT_zero_right e) :=
   rfl
 
 @[simp]
@@ -227,6 +227,10 @@ theorem expGT_eq_zero_iff [Notation E] : expGT (0 : E) l ↔ l = 0 := by
 theorem cons_zero [Notation E] (n : ℕ+) {l : CNFList E} (hl : expGT 0 l) : cons 0 n l hl = n := by
   obtain rfl := expGT_eq_zero_iff.1 hl
   rw [← single_zero, single_eq_cons]
+
+@[simp]
+theorem expGT_zero_left [Notation E] : expGT 0 l ↔ l = 0 := by
+  induction l using consRecOn <;> simp
 
 -- toLex → single is monotonic
 
@@ -358,6 +362,12 @@ theorem eval_cons_lt (he : e < f) (h : expGT e l) : eval (cons e n l h) < ω ^ e
 theorem eval_lt_opow_top (l : CNFList E) : evalAux l < ω ^ Notation.top E :=
   evalAux_lt_opow_top l
 
+@[simp]
+theorem log_omega0_eval_cons {e : E} {l : CNFList E} (h : expGT e l) (n : ℕ+) :
+    log ω (eval (cons e n l h)) = eval e := by
+  rw [eval_cons, log_opow_mul_add one_lt_omega0 (mod_cast n.ne_zero) h.eval_lt,
+    log_eq_zero (nat_lt_omega0 n), add_zero]
+
 instance : LawfulNatCast (CNFList E) where
   eval_natCast n := match n with
     | 0 => rfl
@@ -371,7 +381,7 @@ section Split
 variable [Notation E]
 
 private theorem one_le_eval (h : e ≠ 0) : 1 ≤ eval e := by
-  rwa [one_le_iff_ne_zero, eval_ne_zero_iff]
+  rwa [Ordinal.one_le_iff_ne_zero, eval_ne_zero_iff]
 
 private theorem omega0_opow_eval_of_ne_zero (h : e ≠ 0) : ω ^ eval e = ω * ω ^ (eval e - 1) := by
   conv_lhs => rw [← Ordinal.add_sub_cancel_of_le (one_le_eval h), opow_add, opow_one]
@@ -413,10 +423,10 @@ private def splitFstAux (l : CNFList E) : CNFList E :=
 
 private def expGT.dropLast {l : CNFList E} (h : expGT e l) : expGT e ⟨_, l.2.dropLast⟩ := by
   cases l using consRecOn with
-  | zero => exact expGT_zero _
+  | zero => exact expGT_zero_right _
   | cons f n l hl =>
     cases l using consRecOn with
-    | zero => exact expGT_zero _
+    | zero => exact expGT_zero_right _
     | cons => simp_all [expGT]
 
 private theorem expGT.splitFstAux {l : CNFList E} (h : expGT e l) : expGT e (splitFstAux l) := by
@@ -955,24 +965,33 @@ instance [Add E] [LawfulAdd E] : LawfulDiv (CNFList E) where
           · rw [← eval_add, cons_eq_add]
           · exact eval_cons_ne_zero hm k
 
-instance [Add E] [LawfulAdd E] : Split (CNFList E) where
-  -- TODO: optimize `splitFst` and define it earlier
-  splitFst l := omega * (l / omega)
-  splitSnd l := splitSndAux l.1
-  eval_splitFst := by simp
-  splitSnd_eq := splitSndAux_eq
-
-@[simp]
-theorem splitSnd_cons_cons [Add E] [LawfulAdd E] (hl hm) :
-    splitSnd (cons f k (cons e n l hl) hm) = splitSnd (cons e n l hl) :=
-  splitSndAux_cons_cons _ _
-
 end Div
 
 /-! ### Exponentiation -/
 
 section Pow
-variable [Notation E] [Add E] [LawfulAdd E] [Mul E] [LawfulMul E]
+variable [Notation E] [Mul E] [LawfulMul E] [Div E] [LawfulDiv E]
+
+-- Rename, PR to Mathlib
+theorem _root_.Ordinal.zero_opow_eq (o : Ordinal) : (0 : Ordinal) ^ o = if o = 0 then 1 else 0 := by
+  obtain rfl | hx := eq_or_ne o 0 <;> simp_all
+
+theorem _root_.Ordinal.mul_div_of_dvd {a b : Ordinal} (h : a ∣ b) : a * (b / a) = b := by
+  conv_rhs => rw [← Ordinal.div_add_mod b a]
+  rw [mod_eq_zero_of_dvd h, add_zero]
+
+private theorem _root_.Ordinal.natCast_opow_of_omega0_dvd
+    {n : ℕ} (hn : 1 < n) {o : Ordinal} (h : ω ∣ o) : n ^ o = ω ^ (o / ω) := by
+  conv_rhs => left; rw [← natCast_opow_omega0 hn]
+  rwa [← opow_mul, mul_div_of_dvd]
+
+-- PR to Mathlib
+private theorem _root_.isSuccPrelimit_iff_omega0_dvd {o : Ordinal} : IsSuccPrelimit o ↔ ω ∣ o := by
+  obtain rfl | ho := eq_or_ne o 0
+  · simpa using isSuccPrelimit_bot
+  · have : IsLimit o ↔ IsSuccPrelimit o := by simp [isLimit_iff, ho]
+    rw [← this, isLimit_iff_omega0_dvd]
+    simp [ho]
 
 /-- Calculates `l ^ m` where `m` is a multiple of `ω`. -/
 private def powOmegaAux (l : List (E ×ₗ ℕ+)) (m : E) : CNFList E :=
@@ -980,24 +999,49 @@ private def powOmegaAux (l : List (E ×ₗ ℕ+)) (m : E) : CNFList E :=
   | [] => if m = 0 then 1 else 0
   | a :: _ =>
     if (ofLex a).1 = 0 then
-      if (ofLex a).2 = 1 then 1 else omega
+      if (ofLex a).2 = 1 then 1 else single (m / omega) 1
     else single ((ofLex a).1 * m) 1
 
 private theorem eval_powOmegaAux (l : CNFList E) {m : E} (hm : ω ∣ eval m) :
-    eval (powOmegaAux l.1 m) = eval l ^ eval m :=
-  sorry
+    eval (powOmegaAux l.1 m) = eval l ^ eval m := by
+  cases l using consRecOn with
+  | zero => simp [powOmegaAux, zero_opow_eq, apply_ite]
+  | cons e n l hl =>
+    rw [val_cons, powOmegaAux]
+    split_ifs <;> rename_i _ h
+    · simp_all
+    · have : 1 < n := n.one_le.lt_of_ne' h
+      have := (natCast_opow_of_omega0_dvd this hm).symm
+      aesop
+    · rw [opow_of_isSuccPrelimit]
+      · simp
+      · apply le_trans _ (le_eval_cons _ _)
+        simpa using opow_le_opow_right omega0_pos (eval_monotone (one_le_iff_ne_zero.2 h))
+      · rwa [isSuccPrelimit_iff_omega0_dvd]
 
+variable [Add E] [LawfulAdd E]
+
+/-- We define (heterogeneous) exponentiation on `CNFList E` in the following way. If `f` is a
+multiple of `ω`, then `x ^ f` is so that `0 ^ f` is `1` or `0`, `1 ^ f = 1`, and:
+
+* If `x` is a natural number, then `x ^ f = ω ^ (f / ω)`.
+* Otherwise, `(ω ^ e * n + l) ^ f = ω ^ (e * f)`.
+
+Then, the general exponential `x ^ (f + n)` is computed as `x ^ y * x ^ n`, where the latter term
+is simply `npowRec`.
+
+If `E` is an ordinal notation with lawful addition, multiplication, division, then exponentiation on
+`CNFList E` is lawful.
+-/
 instance [Split E] : Pow (CNFList E) E where
   pow l m := powOmegaAux l.1 (splitFst m) * npowRec (splitSnd m) l
 
-instance [Split E] [NatCast E] [LawfulNatCast E] : LawfulPow (CNFList E) E where
+instance [Split E] : LawfulPow (CNFList E) E where
   eval_pow l m := by
     show eval (_ * _) = _
-    conv_rhs => rw [← splitFst_add_splitSnd m]
-    rw [eval_mul, eval_powOmegaAux, eval_npowRec, ← opow_natCast, ← opow_add]
-    · simp
-    · rw [eval_splitFst]
-      exact dvd_mul_right ω _
+    rw [← eval_splitFst_add_splitSnd m, eval_mul, eval_powOmegaAux, eval_npowRec, ← opow_natCast,
+      ← opow_add]
+    simp
 
 end Pow
 end CNFList
@@ -1060,8 +1104,6 @@ instance [Add (Exp α)] [LawfulAdd (Exp α)] : LawfulDiv α where
 end Div
 
 section Split
--- TODO: this shouldn't require any typeclass instances
-variable [Add (Exp α)] [LawfulAdd (Exp α)] [Sub (Exp α)] [LawfulSub (Exp α)]
 
 instance : Split α where
   splitFst l := equivList.symm (splitFst (equivList l))
@@ -1075,6 +1117,12 @@ theorem splitSnd_def (l : α) : splitSnd l = splitSnd (equivList l) := rfl
 end Split
 
 section Pow
+variable [Add (Exp α)] [LawfulAdd (Exp α)] [Mul (Exp α)] [Div (Exp α)] [Split (Exp α)]
+
+instance : Pow α (Exp α) where pow l e := equivList.symm (equivList l ^ e)
+theorem pow_def (l : α) (e : Exp α) : l ^ e = equivList.symm (equivList l ^ e) := rfl
+instance [LawfulMul (Exp α)] [LawfulDiv (Exp α)] : LawfulPow α (Exp α) where
+  eval_pow := by simp [eval_def, pow_def]
 
 end Pow
 

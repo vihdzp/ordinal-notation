@@ -3,6 +3,10 @@ import Mathlib.SetTheory.Ordinal.Exponential
 import Mathlib.SetTheory.Cardinal.Arithmetic
 import Mathlib.Data.Prod.Lex
 
+/-!
+Some quick and dirty lemmas that might be worth PRing in a nicer form.
+-/
+
 open Order Cardinal
 
 namespace Ordinal
@@ -91,6 +95,20 @@ theorem div_eq_iff {a b c : Ordinal} (hb : b ≠ 0) : a / b = c ↔ b * c ≤ a 
 @[simp]
 theorem nat_mod_omega0 (n : ℕ) : n % ω = n :=
   mod_eq_of_lt (nat_lt_omega0 n)
+
+-- The one in Mathlib has an extra assumption!
+theorem log_pos' {b o : Ordinal} (hb : 1 < b) (hbo : b ≤ o) : 0 < log b o := by
+  rwa [← succ_le_iff, succ_zero, ← opow_le_iff_le_log hb (hb.trans_le hbo).ne_bot, opow_one]
+
+theorem opow_of_isSuccPrelimit {a b : Ordinal} (ha : ω ≤ a) (h : IsSuccPrelimit b) :
+    a ^ b = ω ^ (log ω a * b) := by
+  obtain rfl | hb := eq_or_ne b 0
+  · simp
+  apply le_antisymm
+  · apply (opow_le_opow_left b (lt_opow_succ_log_self one_lt_omega0 _).le).trans
+    rw [← opow_mul,
+      succ_mul_of_isLimit (log_pos' one_lt_omega0 ha).ne' (Ordinal.isLimit_iff.2 ⟨hb, h⟩)]
+  · simpa [opow_mul] using opow_le_opow_left b (opow_log_le_self _ (omega0_pos.trans_le ha).ne')
 
 end Ordinal
 

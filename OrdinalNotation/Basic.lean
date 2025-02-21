@@ -84,11 +84,20 @@ theorem range_eval : range (eval : α → _) = Set.Iio (top α) := eval.range_eq
 theorem eval_ne_zero_iff : eval (x : α) ≠ 0 ↔ x ≠ 0 := eval_eq_zero_iff.not
 theorem eval_ne_one_iff : eval (x : α) ≠ 1 ↔ x ≠ 1 := eval_eq_one_iff.not
 
+theorem one_le_iff_ne_zero {x : α} : 1 ≤ x ↔ x ≠ 0 := by
+  rw [← eval_le_eval, eval_one, ← eval_ne_zero_iff, Ordinal.one_le_iff_ne_zero]
+
 theorem mem_range_eval_iff_lt {o : Ordinal} : o ∈ range (eval : α → _) ↔ o < top α :=
   eval.mem_range_iff_rel' o
 
 theorem mem_range_eval_of_le {o} {x : α} : o ≤ eval x → o ∈ Set.range (eval : α → _) :=
   eval.mem_range_of_le
+
+theorem isSuccPrelimit_eval_iff {x : α} : IsSuccPrelimit (eval x) ↔ IsSuccPrelimit x :=
+  eval.isSuccPrelimit_apply_iff
+
+theorem isSuccLimit_eval_iff {x : α} : IsSuccLimit (eval x) ↔ IsSuccLimit x :=
+  eval.isSuccLimit_apply_iff
 
 instance : OrderBot α where
   bot := 0
@@ -301,6 +310,9 @@ end Mod
 section Split
 variable [Split α]
 
+theorem eval_splitFst_add_splitSnd (a : α) : eval (splitFst a) + splitSnd a = eval a := by
+  rw [eval_splitFst, splitSnd_eq, Ordinal.div_add_mod]
+
 @[simp]
 theorem splitFst_natCast (n : ℕ) [NatCast α] [LawfulNatCast α] : splitFst (n : α) = 0 := by
   rw [← eval_inj, eval_splitFst, eval_natCast, Ordinal.div_eq_zero_of_lt (nat_lt_omega0 n),
@@ -316,7 +328,7 @@ theorem splitFst_eq [Mul α] [LawfulMul α] [Div α] [LawfulDiv α] (a : α) :
 
 theorem splitFst_add_splitSnd [Add α] [LawfulAdd α] [NatCast α] [LawfulNatCast α] (a : α) :
     splitFst a + (splitSnd a : α) = a := by
-  rw [← eval_inj, eval_add, eval_splitFst, eval_natCast, splitSnd_eq, Ordinal.div_add_mod]
+  rw [← eval_inj, eval_add, eval_natCast, eval_splitFst_add_splitSnd]
 
 end Split
 
